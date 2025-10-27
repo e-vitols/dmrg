@@ -1,0 +1,14 @@
+[project]
+name = "dmrg"
+version = "0.0.1"
+description = "A DMRG solver interfaced to VeloxChem."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["h5py"]
+authors = [
+    {name = "Erik Vitols", email = "evitols@kth.se"},
+]
+
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
