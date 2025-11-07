@@ -46,6 +46,7 @@ where $`\{ \sigma_i \}`$ are occupation number indices and $`\chi = \text{maxdim
 
 ![MPS](figs/MPS.svg)
 
+License: BSD-3-Clause. See LICENSE.
 
 [Python]: https://www.python.org/
 [VeloxChem]: https://veloxchem.org/docs/intro.html
