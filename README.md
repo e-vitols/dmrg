@@ -14,8 +14,7 @@
 
 **Dependencies**
 
-The dependencies of **DMRG-VLX** are the same as that for VeloxChem, but are nonetheless given below:
-* [VeloxChem][VeloxChem]
+The dependencies of **DMRG-VLX** are the same as that for [VeloxChem][VeloxChem], but are nonetheless given below:
 * [CMake]
 * [NumPy]
 * [Eigen]
