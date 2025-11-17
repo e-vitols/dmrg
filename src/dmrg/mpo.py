@@ -25,8 +25,11 @@ class MatrixProductOperator:
         :param scf_results:
             The converged SCF results tensor from VeloxChem.
         :param operator:
-            The specific operator requested.
+            The specific operator requested, if None takes the set self.operator.
         """
 
         if operator is None:
             operator = self.operator
+
+    def construct_hamiltonian(self, scf_results):
+        pass
