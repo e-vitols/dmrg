@@ -38,45 +38,98 @@ class MatrixProductState:
 
         mps = []
 
-        #if self.max_bond_dim:
-            # mps.shape = (site, local_dim, bond_i, bond_j)
-        #self.mps = np.random.rand(
-        #    (self.nr_sites, self.local_dim, self.max_bond_dim, self.max_bond_dim)
-        #)
-
         # Left-most matrix (row-vector)
         m_l = 1
         m_r = max(1, min(m, d))
-        A = (np.random.randn(m_l, d, m_r)
-             + 1j * np.random.randn(m_l, d, m_r))
+        A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
         mps.append(A)
 
         # The middle sites (matrices) are built iteratively, taking the shape of the previous sites right dimension for the new left
         for i in range(1, L - 1):
             m_l = mps[-1].shape[2]
             m_r = max(1, min(m, d))
-            A = (np.random.randn(m_l, d, m_r)
-                + 1j * np.random.randn(m_l, d, m_r))
+            A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
             mps.append(A)
 
         # Right-most matrix (column-vector)
         m_l = mps[-1].shape[2]
         m_r = 1
-        A = (np.random.randn(m_l, d, m_r)
-             + 1j * np.random.randn(m_l, d, m_r))
+        A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
         mps.append(A)
 
         self.mps = mps
 
-    def canonicalize_mps(self, center):
+    def canonicalize_mps(self, center, mps=None):
         """
         Puts the mps into canonical form on site 'center' with repeated singular-value decomposition.
 
         :param center:
             The site on which the MPS is canoncalized with respect to.
+        :param mps:
+            The mps on which to operate. If mps=None, i.e., no mps is supplied, default to the internal self.mps, otherwise act on the supplied mps
         """
-        
-        
 
+        allowed_center = 0 <= center <= self.nr_sites
+        if allowed_center is not True:
+            raise ValueError(
+                "The site to center on must be within the number of sites!"
+            )
 
-        
+        if mps is None:
+            if self.mps is None:
+                raise ValueError("MPS is not initialized!")
+            self.mps = self._canonicalize_mps(self.mps, center)
+            return self.mps
+        else:
+            return self._canonicalize_mps(mps, center)
+
+    @staticmethod
+    def _canonicalize_mps(mps, center):
+        L = len(mps)
+        d = mps[0].shape[1]
+
+        # Left canonicalize up to center site
+        for l in range(center - 1):
+            # Get bond dimension at site l
+            m_l, _, m_r = mps[l].shape
+
+            # Reshape the 3-legged tensor at site l into a matrix
+            A_l = mps[l].reshape(m_l * d, m_r)
+
+            # Perform SVD on the reshaped 3-legged tensor (matrix A_l)
+            U, S, Vh = np.linalg.svd(A_l, full_matrices=False)
+            r = S.shape[0]
+
+            # Get the renormalized basis right-transformation matrix
+            G = np.diag(S) @ Vh
+
+            # Replace the old tensor at site l with the left-canonicalized
+            mps[l] = U.reshape(m_l, d, r)
+
+            # Transform into the renormalized/canonical (depending on if r < m_r) basis
+            mps_next_site = mps[l + 1].copy()
+            mps[l + 1] = np.einsum("lr, rdm -> ldm", G, mps_next_site)
+
+        for l in range(L - 1, center, -1):
+            # Get bond dimension at site l
+            m_l, _, m_r = mps[l].shape
+
+            # Reshape the 3-legged tensor at site l into a matrix
+            A_l = mps[l].reshape(m_l, d * m_r)
+
+            # Perform SVD on the reshaped 3-legged tensor (matrix A_l)
+            U, S, Vh = np.linalg.svd(A_l, full_matrices=False)
+            r = S.shape[0]
+
+            # Get the renormalized basis left-transformation matrix
+            G = U @ np.diag(S)
+
+            # Replace the old tensor at site l with the right-canonicalized
+            mps[l] = Vh.reshape(r, d, m_r)
+
+            # Transform into the renormalized/canonical (depending on if r < m_l) basis
+            mps_next_site = mps[l - 1].copy()
+
+            mps[l - 1] = np.einsum("mdl, lr -> mdr", mps_next_site, G)
+
+        return mps
