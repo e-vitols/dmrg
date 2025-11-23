@@ -52,14 +52,24 @@ class MatrixProductOperator:
 
         :param scf_results:
             The converged SCF tensors from a VeloxChem SCF
-        
+
         :return:
             Returns the transformed one- and two-electron integrals in MO-basis.
         """
 
-        C_alpha = scf_results['C_alpha']
-        h_ij   = np.einsum('uv, ui, vj -> ij', self.one_elec_ints_ao, C_alpha, C_alpha, optimize=True)
-        g_ijkl = np.einsum('uvws, ui, vj, wk, sl -> ijkl', self.two_elec_ints_ao, C_alpha, C_alpha, C_alpha, C_alpha, optimize=True)
+        C_alpha = scf_results["C_alpha"]
+        h_ij = np.einsum(
+            "uv, ui, vj -> ij", self.one_elec_ints_ao, C_alpha, C_alpha, optimize=True
+        )
+        g_ijkl = np.einsum(
+            "uvws, ui, vj, wk, sl -> ijkl",
+            self.two_elec_ints_ao,
+            C_alpha,
+            C_alpha,
+            C_alpha,
+            C_alpha,
+            optimize=True,
+        )
 
         return h_ij, g_ijkl
 
@@ -76,24 +86,24 @@ class MatrixProductOperator:
             operator = self.operator
         L = self.nr_sites
         d = self.local_dim
-        #m = self.max_bond_dim
+        # m = self.max_bond_dim
 
         h_ij, g_ijkl = self.transform_integrals(scf_results)
 
-        #mpo = [for _ in range(L)]
+        # mpo = [for _ in range(L)]
 
         identity = np.eye(4)
-        cup_D    = self.local_c("up", True)
-        cup      = self.local_c("up", False)
-        cd_D     = self.local_c("down", True)
-        cd       = self.local_c("down", False)
-        
+        cup_D = self.local_c("up", True)
+        cup = self.local_c("up", False)
+        cd_D = self.local_c("down", True)
+        cd = self.local_c("down", False)
+
         return h_ij, g_ijkl
 
     def construct_hamiltonian(self, scf_results):
         L = self.nr_sites
         d = self.local_dim
-        #m = self.max_bond_dim
+        # m = self.max_bond_dim
 
         h_ij, g_ijkl = self.transform_integrals(scf_results)
 
@@ -116,15 +126,15 @@ class MatrixProductOperator:
             operator_str.append(operator)
         return operator_str
 
-    #@staticmethod
+    # @staticmethod
     def local_c(self, spin: str, dagger: bool, dim: int = 4):
         """
         Local fermionic creation/annihilation operator in the basis
         {|0>, |up>, |down>, |up down>}.
 
-        :param spin: 
+        :param spin:
             The spin of the operator; 'up' or 'down'.
-        :param dagger: 
+        :param dagger:
             The kind of operator: True -> creation, False -> annihilation
         """
         mat = np.zeros((dim, dim))
@@ -145,16 +155,14 @@ class MatrixProductOperator:
             mat = mat.T
 
         return mat
-    
+
     @staticmethod
-    def jordan_wigner_mat(): # or nr_qbits
+    def jordan_wigner_mat():  # or nr_qbits
         """
-        Constructs the matrix representation, in the basis {|0>, |up>, |down>, |up down>}, necessary for imposing fermionic 
+        Constructs the matrix representation, in the basis {|0>, |up>, |down>, |up down>}, necessary for imposing fermionic
         anticommutation relations via the Jordan-Wigner transformation.
 
         :returns:
             The (4,4) dimensional matrix representation as a numpy array.
         """
         return np.diag((1, -1, -1, 1))
-
-
