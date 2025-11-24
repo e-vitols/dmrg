@@ -1,5 +1,5 @@
 [project]
-name = "vlx-dmrg"
+name = "dmrg"
 version = "0.0.1"
 description = "A DMRG solver interfaced to VeloxChem."
 readme = "README.md"
