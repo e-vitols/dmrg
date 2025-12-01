@@ -2,14 +2,14 @@ import numpy as np
 import pytest
 
 import dmrg
-from dmrg import mps
-from dmrg.mps import MatrixProductState
+from dmrg.mpo import MpoDriver
+from dmrg.mps import MpsDriver
 
 
 class TestCanonicalize:
     def test_left_canonicalize(self, local_dim=4, m_bonddim=8, nr_sites=6):
         # tt = mps.MatrixProductState()
-        tt = MatrixProductState()
+        tt = MpsDriver()
         tt.local_dim = local_dim
         tt.max_bond_dim = m_bonddim
         tt.nr_sites = nr_sites
@@ -23,7 +23,7 @@ class TestCanonicalize:
 
     def test_right_canonicalize(self, local_dim=4, m_bonddim=8, nr_sites=6):
         # tt = mps.MatrixProductState()
-        tt = MatrixProductState()
+        tt = MpsDriver()
         tt.local_dim = local_dim
         tt.max_bond_dim = m_bonddim
         tt.nr_sites = nr_sites

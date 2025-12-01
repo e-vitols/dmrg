@@ -4,7 +4,7 @@ import veloxchem as vlx
 from .hamiltonian import Hamiltonian
 
 
-class MatrixProductOperator:
+class MpoDriver:
     """
     Implements the MatrixProductOperator by importing the orbitals and -- specific, for each operator -- integrals from VeloxChem.
     """
@@ -182,6 +182,7 @@ class MatrixProductOperator:
         transf_mps = mps.copy()
 
         for l in range(len(mps)):
+            print(l, mpo[l].shape, mps[l].shape)
             transf_mps[l] = np.einsum("dD, ldr -> lDr", mpo[l], mps[l])
 
         return transf_mps

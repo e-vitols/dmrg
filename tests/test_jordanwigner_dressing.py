@@ -1,9 +1,10 @@
 import numpy as np
 import pytest
 
-from dmrg.mpo import MatrixProductOperator
+from dmrg.mpo import MpoDriver
+from dmrg.mps import MpsDriver
+
 # import dmrg
-from dmrg.mps import MatrixProductState
 
 # from dmrg.sweep import Sweep
 
@@ -16,7 +17,7 @@ class TestJordanWigner:
         Test the antisymmetry, i.e., that creating/annihilating a fermion twice in the same
         state collapses the MPS.
         """
-        tt = MatrixProductState()
+        tt = MpsDriver()
         tt.local_dim = local_dim
         tt.max_bond_dim = m_bonddim
         tt.nr_sites = nr_sites
@@ -24,13 +25,13 @@ class TestJordanWigner:
         tt.canonicalize_mps(0)
         mps = tt.mps
 
-        con_mpo = MatrixProductOperator()
+        con_mpo = MpoDriver()
         con_mpo.nr_sites = tt.nr_sites
 
         mpo = con_mpo.dress_JW(site, spin, creation)
 
-        transf_mps = con_mpo.apply_mpo(mps, mpo)
-        second_transf_mps = con_mpo.apply_mpo(transf_mps, mpo)
+        transf_mps = con_mpo.apply_mpo(mpo, mps)
+        second_transf_mps = con_mpo.apply_mpo(mpo, transf_mps)
 
         tt.mps = second_transf_mps
         norm = tt.full_norm()

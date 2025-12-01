@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class MatrixProductState:
+class MpsDriver:
     """
     Implements the MatrixProductState object.
 

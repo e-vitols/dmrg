@@ -4,8 +4,8 @@ import numpy as np
 import veloxchem as vlx
 
 from .hamiltonian import Hamiltonian
-from .mpo import MatrixProductOperator
-from .mps import MatrixProductState
+from .mpo import MpoDriver
+from .mps import MpsDriver
 
 
 class Sweep:
