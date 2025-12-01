@@ -1,5 +1,5 @@
-import veloxchem as vlx
 import numpy as np
+import veloxchem as vlx
 
 from .hamiltonian import Hamiltonian
 
@@ -107,12 +107,12 @@ class MatrixProductOperator:
 
         h_ij, g_ijkl = self.transform_integrals(scf_results)
 
-    def dress_JW(self, p, spin, op_kind):
+    def dress_JW(self, p, spin, op_kind, local_dim=4):
         """
         Return the Jordan-Wigner transformed operator string.
         """
-        jw_mat = self.jordan_wigner_mat()
-        identity = np.eye(4)
+        jw_mat = self.jordan_wigner_mat(local_dim=local_dim)
+        identity = np.eye(local_dim)
         L = self.nr_sites
 
         operator_str = []
@@ -157,7 +157,7 @@ class MatrixProductOperator:
         return mat
 
     @staticmethod
-    def jordan_wigner_mat():  # or nr_qbits
+    def jordan_wigner_mat(local_dim=4):  # or nr_qbits
         """
         Constructs the matrix representation, in the basis {|0>, |up>, |down>, |up down>}, necessary for imposing fermionic
         anticommutation relations via the Jordan-Wigner transformation.
@@ -165,4 +165,7 @@ class MatrixProductOperator:
         :returns:
             The (4,4) dimensional matrix representation as a numpy array.
         """
+        if local_dim != 4:
+            raise ValueError("Only implemented for local dimension 4")
+
         return np.diag((1, -1, -1, 1))

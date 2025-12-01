@@ -24,6 +24,7 @@ class MatrixProductState:
         self.local_dim = None
 
         self.mps = None
+        self.canonical_center = None
 
     def _initialize_random_mps(self):
         """
@@ -59,6 +60,28 @@ class MatrixProductState:
 
         self.mps = mps
 
+    def full_norm(self):
+        """
+        Gets the norm of the MPS.
+        """
+        env = np.array([[1.0]], dtype=complex)
+        for A in self.mps:
+            env = np.einsum("lL, ldr, LdR -> rR", env, A, A.conjugate())
+
+        return env.squeeze().real
+
+    def canonical_norm(self):
+        """
+        Gets the norm of the MPS assuming canonical form.
+        """
+        if self.canonical_center is None:
+            raise ValueError("Requires the MPS in canonical form!")
+        return np.einsum(
+            "ldr, LDR",
+            self.mps[self.canonical_center],
+            self.mps[self.canonical_center].conjugate(),
+        )
+
     def canonicalize_mps(self, center, mps=None):
         """
         Puts the mps into canonical form on site 'center' with repeated singular-value decomposition.
@@ -79,6 +102,7 @@ class MatrixProductState:
             if self.mps is None:
                 raise ValueError("MPS is not initialized!")
             self.mps = self._canonicalize_mps(self.mps, center)
+            self.canonical_center = center
             return self.mps
         else:
             return self._canonicalize_mps(mps, center)
