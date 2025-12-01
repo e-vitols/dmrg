@@ -8,6 +8,6 @@ from .mpo import MpoDriver
 from .mps import MpsDriver
 
 
-class Sweep:
+class SweepDriver:
     def __init__(self):
         self.nsweeps = 50

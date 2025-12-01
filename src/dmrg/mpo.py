@@ -182,7 +182,6 @@ class MpoDriver:
         transf_mps = mps.copy()
 
         for l in range(len(mps)):
-            print(l, mpo[l].shape, mps[l].shape)
             transf_mps[l] = np.einsum("dD, ldr -> lDr", mpo[l], mps[l])
 
         return transf_mps
