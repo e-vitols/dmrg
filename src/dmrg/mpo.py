@@ -17,6 +17,7 @@ class MatrixProductOperator:
             - scf_results: The converged SCF results tensor from VeloxChem.
             - operator: Specific operator to construct, if not given, the Hamiltonian is assumed.
         """
+        # TODO: change class-name to MatrixProducOperatorConstructor/MpoConstructor
         self.scf_results = None
         self.operator = "Ham"
 
@@ -126,6 +127,12 @@ class MatrixProductOperator:
             operator_str.append(operator)
         return operator_str
 
+    def mpo_converted_JW(self, jw_string):
+        _mpo = []
+        for core in jw_string:
+            _mpo.append(core[np.newaxis, :, :, np.newaxis])
+        return _mpo
+
     # @staticmethod
     def local_c(self, spin: str, dagger: bool, dim: int = 4):
         """
@@ -169,3 +176,12 @@ class MatrixProductOperator:
             raise ValueError("Only implemented for local dimension 4")
 
         return np.diag((1, -1, -1, 1))
+
+    @staticmethod
+    def apply_mpo(mpo, mps):
+        transf_mps = mps.copy()
+
+        for l in range(len(mps)):
+            transf_mps[l] = np.einsum("dD, ldr -> lDr", mpo[l], mps[l])
+
+        return transf_mps
