@@ -69,19 +69,24 @@ class MpsDriver:
         for A in self.mps:
             env = np.einsum("lL, ldr, LdR -> rR", env, A, A.conjugate())
 
-        return env.squeeze().real
+        return np.sqrt(env.squeeze().real)
 
     def canonical_norm(self):
         """
-        Gets the norm of the MPS assuming canonical form.
+        Gets the norm of the MPS assuming it is in canonical form.
+
+        :return norm:
+            Returns the norm from
         """
         if self.canonical_center is None:
             raise ValueError("Requires the MPS in canonical form!")
-        return np.einsum(
-            "ldr, LDR",
-            self.mps[self.canonical_center],
-            self.mps[self.canonical_center].conjugate(),
-        )
+        # return np.einsum(
+        #    "ldr, ldr",
+        #    self.mps[self.canonical_center],
+        #    self.mps[self.canonical_center].conjugate(),
+        # ).real
+        A = self.mps[self.canonical_center]
+        return np.sqrt(np.vdot(A, A).real)
 
     def canonicalize_mps(self, center, mps=None):
         """
@@ -113,8 +118,8 @@ class MpsDriver:
         L = len(mps)
         d = mps[0].shape[1]
 
-        # Left canonicalize up to center site
-        for l in range(center - 1):
+        # Left canonicalize up to center site, left sweep
+        for l in range(center):
             # Get bond dimension at site l
             m_l, _, m_r = mps[l].shape
 
@@ -123,13 +128,13 @@ class MpsDriver:
 
             # Perform SVD on the reshaped 3-legged tensor (matrix A_l)
             U, S, Vh = np.linalg.svd(A_l, full_matrices=False)
-            r = S.shape[0]
+            chi = S.shape[0]
+
+            # Replace the old tensor at site l with the left-canonicalized
+            mps[l] = U.reshape(m_l, d, chi)
 
             # Get the renormalized basis right-transformation matrix
             G = np.diag(S) @ Vh
-
-            # Replace the old tensor at site l with the left-canonicalized
-            mps[l] = U.reshape(m_l, d, r)
 
             # Transform into the renormalized/canonical (depending on if r < m_r) basis
             mps_next_site = mps[l + 1].copy()
@@ -144,13 +149,13 @@ class MpsDriver:
 
             # Perform SVD on the reshaped 3-legged tensor (matrix A_l)
             U, S, Vh = np.linalg.svd(A_l, full_matrices=False)
-            r = S.shape[0]
+            chi = S.shape[0]
+
+            # Replace the old tensor at site l with the right-canonicalized
+            mps[l] = Vh.reshape(chi, d, m_r)
 
             # Get the renormalized basis left-transformation matrix
             G = U @ np.diag(S)
-
-            # Replace the old tensor at site l with the right-canonicalized
-            mps[l] = Vh.reshape(r, d, m_r)
 
             # Transform into the renormalized/canonical (depending on if r < m_l) basis
             mps_next_site = mps[l - 1].copy()

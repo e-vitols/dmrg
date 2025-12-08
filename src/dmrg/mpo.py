@@ -20,6 +20,7 @@ class MpoDriver:
         # TODO: change class-name to MatrixProducOperatorConstructor/MpoConstructor
         self.scf_results = None
         self.operator = "Ham"
+        self.mpo = None
 
         self.one_elec_ints_ao = None
         self.two_elec_ints_ao = None
