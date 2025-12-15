@@ -1,7 +1,8 @@
 import numpy as np
-import veloxchem as vlx
 
 from .hamiltonian import Hamiltonian
+
+# import veloxchem as vlx
 
 
 class MpoDriver:
