@@ -17,7 +17,6 @@ class MpsDriver:
         """
         Initializes the MatrixProductState object.
         """
-        # TODO: change class-name to MatrixProducStateConstructor/MpsConstructor
         # Settings specifying the
         self.nr_sites = None
         self.max_bond_dim = None

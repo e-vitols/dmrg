@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 
 from .hamiltonian import Hamiltonian
@@ -110,7 +112,7 @@ class MpoDriver:
 
         h_ij, g_ijkl = self.transform_integrals(scf_results)
 
-    def dress_JW(self, p, spin, op_kind, local_dim=4):
+    def dress_JW(self, site: int, spin: str, op_kind: bool, local_dim=4):
         """
         Return the Jordan-Wigner transformed operator string.
         """
@@ -120,9 +122,9 @@ class MpoDriver:
 
         operator_str = []
         for l in range(L):
-            if l < p:
+            if l < site:
                 operator = jw_mat
-            elif l == p:
+            elif l == site:
                 operator = self.local_c(spin, op_kind)
             else:
                 operator = identity
@@ -136,6 +138,71 @@ class MpoDriver:
         return _mpo
 
     # @staticmethod
+    def construct_twosite_operator(
+        self, creat_ind_spin: tuple, annih_ind_spin: tuple, local_dim: int = 4
+    ):
+        """
+        Implements two-site operator (particle-number conserving),
+        i.e., annihilation followed by creation.
+        """
+        creat_ind, creat_spin = creat_ind_spin
+        annih_ind, annih_spin = annih_ind_spin
+        creat_op = self.dress_JW(creat_ind, creat_spin, True)
+        annih_op = self.dress_JW(annih_ind, annih_spin, False)
+        same_site = False
+
+        if annih_ind == creat_ind:
+            same_site = True
+            right_op = annih_op
+        # operator with odd number of fermions to the left
+        else:
+            right_ind = max(creat_ind, annih_ind)
+
+            if right_ind == creat_ind:
+                right_op = creat_op.copy()
+                left_ind = annih_ind
+                left_op = annih_op
+            else:
+                right_op = annih_op.copy()
+                left_ind = creat_ind
+                left_op = creat_op
+
+        two_site_op = right_op.copy()
+
+        # I_1 x I_2 x ... x \gamma_i F_i x F_{i+1} x ... x F_{j-1} x \gamma_j x ... I_L
+        jw_mat = self.jordan_wigner_mat()
+        identity = np.eye(local_dim)
+
+        if same_site:
+            two_site_op[creat_ind] = creat_op[creat_ind] @ annih_op[creat_ind]
+        else:
+            for site in range(right_ind):
+                if site == left_ind:
+                    if left_ind == creat_ind:
+                        two_site_op[site] = left_op[site] @ jw_mat
+                    else:
+                        two_site_op[site] = jw_mat @ left_op[site]
+                elif site > left_ind:
+                    two_site_op[site] = jw_mat
+                elif site < left_ind:
+                    two_site_op[site] = identity
+
+        return two_site_op
+
+    def _construct_twosite_operator(self, creat_ind_spin, annih_ind_spin, local_dim=4):
+        """
+        Implements two-site operator (particle-number conserving),
+        i.e., annihilation followed by creation.
+        """
+        creat_ind, creat_spin = creat_ind_spin
+        annih_ind, annih_spin = annih_ind_spin
+
+        creat_op = self.dress_JW(creat_ind, creat_spin, True, local_dim=local_dim)
+        annih_op = self.dress_JW(annih_ind, annih_spin, False, local_dim=local_dim)
+
+        # Overall operator = creat_op * annih_op  (rightmost acts first on a ket)
+        return [A @ B for A, B in zip(creat_op, annih_op)]
+
     def local_c(self, spin: str, dagger: bool, dim: int = 4):
         """
         Local fermionic creation/annihilation operator in the basis
