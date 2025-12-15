@@ -95,10 +95,10 @@ class MpoDriver:
         # mpo = [for _ in range(L)]
 
         identity = np.eye(4)
-        cup_D = self.local_c("up", True)
-        cup = self.local_c("up", False)
-        cd_D = self.local_c("down", True)
-        cd = self.local_c("down", False)
+        c_up_D = self.local_c("up", True)
+        c_up = self.local_c("up", False)
+        c_d_D = self.local_c("down", True)
+        c_d = self.local_c("down", False)
 
         return h_ij, g_ijkl
 
@@ -160,6 +160,7 @@ class MpoDriver:
             raise ValueError(f"Unknown spin: {spin!r}")
 
         if not dagger:
+            # Hermitian conjguate if annihilation operator
             mat = mat.T
 
         return mat
