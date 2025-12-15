@@ -1,9 +1,8 @@
-import veloxchem as vlx
+# import veloxchem as vlx
 import numpy as np
 
 
 class Hamiltonian:
-
     def __init__(self):
         self.orbitals = None
 

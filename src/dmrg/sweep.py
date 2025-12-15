@@ -1,11 +1,12 @@
 import copy
 
 import numpy as np
-import veloxchem as vlx
 
 from .hamiltonian import Hamiltonian
 from .mpo import MpoDriver
 from .mps import MpsDriver
+
+# import veloxchem as vlx
 
 
 class SweepDriver:
