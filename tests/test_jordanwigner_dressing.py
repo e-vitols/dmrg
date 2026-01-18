@@ -43,8 +43,7 @@ class TestJordanWigner:
         self, local_dim=4, m_bonddim=8, nr_sites=6, site=3, spin="up", creation=True
     ):
         """
-        Test the antisymmetry, i.e., that creating/annihilating a fermion twice in the same
-        state collapses the MPS.
+        Test that operators obey the standard commutation relations.
         """
         mps_drv = MpsDriver()
         mps_drv.local_dim = local_dim
@@ -61,7 +60,6 @@ class TestJordanWigner:
 
                         mpo_drv = MpoDriver()
                         mpo_drv.nr_sites = mps_drv.nr_sites
-                        # print(spin, creation, site, site + 1)
 
                         mpo_i = mpo_drv.dress_JW(site1, spin, creation)
                         mpo_j = mpo_drv.dress_JW(site2, spin, creation)
@@ -72,13 +70,13 @@ class TestJordanWigner:
                         mps_j = mpo_drv.apply_mpo(mpo_j, mps2)
                         mps_ji = mpo_drv.apply_mpo(mpo_i, mps_j)
 
-                        norm_2 = (
+                        ovlp_2 = (
                             mps_drv.overlap(mps_ij, mps_ij)
                             + mps_drv.overlap(mps_ij, mps_ji)
                             + mps_drv.overlap(mps_ji, mps_ij)
                             + mps_drv.overlap(mps_ji, mps_ji)
                         )
-                        assert norm_2 < 1e-10
+                        assert ovlp_2 < 1e-10
 
     def test_antisymmetry_canonical_norm(
         self,

@@ -90,7 +90,7 @@ class MpsDriver:
     @staticmethod
     def overlap(mps1, mps2):
         """
-        Gets the norm of the MPS.
+        Gets the overlap squared of mps1 and mps2.
         """
         env = np.array([[1.0]], dtype=complex)
         if len(mps1) != len(mps2):
