@@ -137,6 +137,59 @@ class MpoDriver:
             _mpo.append(core[np.newaxis, :, :, np.newaxis])
         return _mpo
 
+    def local_c(self, spin: str, dagger: bool, dim: int = 4):
+        """
+        Local fermionic creation/annihilation operator in the basis
+        {|0>, |up>, |down>, |up down>}.
+
+        :param spin:
+            The spin of the operator; 'up' or 'down'.
+        :param dagger:
+            The kind of operator: True -> creation, False -> annihilation
+        """
+        mat = np.zeros((dim, dim))
+        jw_mat = self.jordan_wigner_mat()
+
+        if spin == "up":
+            mat[1, 0] = 1
+            mat[3, 2] = 1
+        elif spin == "down":
+            mat[2, 0] = 1
+            mat[3, 1] = 1
+            # Impose anticommutation for same site-spins
+            mat = mat @ jw_mat
+        else:
+            raise ValueError(f"Unknown spin: {spin!r}")
+
+        if not dagger:
+            # Hermitian conjguate if annihilation operator
+            mat = mat.T
+
+        return mat
+
+    @staticmethod
+    def jordan_wigner_mat(local_dim=4):  # or nr_qbits
+        """
+        Constructs the matrix representation, in the basis {|0>, |up>, |down>, |up down>}, necessary for imposing fermionic
+        anticommutation relations via the Jordan-Wigner transformation.
+
+        :returns:
+            The (4,4) dimensional matrix representation as a numpy array.
+        """
+        if local_dim != 4:
+            raise ValueError("Only implemented for local dimension 4")
+
+        return np.diag((1, -1, -1, 1))
+
+    @staticmethod
+    def apply_mpo(mpo, mps):
+        transf_mps = mps.copy()
+
+        for l in range(len(mps)):
+            transf_mps[l] = np.einsum("dD, ldr -> lDr", mpo[l], mps[l])
+
+        return transf_mps
+
     # @staticmethod
     def construct_twosite_operator(
         self, creat_ind_spin: tuple, annih_ind_spin: tuple, local_dim: int = 4
@@ -202,56 +255,3 @@ class MpoDriver:
 
         # Overall operator = creat_op * annih_op  (rightmost acts first on a ket)
         return [A @ B for A, B in zip(creat_op, annih_op)]
-
-    def local_c(self, spin: str, dagger: bool, dim: int = 4):
-        """
-        Local fermionic creation/annihilation operator in the basis
-        {|0>, |up>, |down>, |up down>}.
-
-        :param spin:
-            The spin of the operator; 'up' or 'down'.
-        :param dagger:
-            The kind of operator: True -> creation, False -> annihilation
-        """
-        mat = np.zeros((dim, dim))
-        jw_mat = self.jordan_wigner_mat()
-
-        if spin == "up":
-            mat[1, 0] = 1
-            mat[3, 2] = 1
-        elif spin == "down":
-            mat[2, 0] = 1
-            mat[3, 1] = 1
-            # Impose anticommutation for same site-spins
-            mat = mat @ jw_mat
-        else:
-            raise ValueError(f"Unknown spin: {spin!r}")
-
-        if not dagger:
-            # Hermitian conjguate if annihilation operator
-            mat = mat.T
-
-        return mat
-
-    @staticmethod
-    def jordan_wigner_mat(local_dim=4):  # or nr_qbits
-        """
-        Constructs the matrix representation, in the basis {|0>, |up>, |down>, |up down>}, necessary for imposing fermionic
-        anticommutation relations via the Jordan-Wigner transformation.
-
-        :returns:
-            The (4,4) dimensional matrix representation as a numpy array.
-        """
-        if local_dim != 4:
-            raise ValueError("Only implemented for local dimension 4")
-
-        return np.diag((1, -1, -1, 1))
-
-    @staticmethod
-    def apply_mpo(mpo, mps):
-        transf_mps = mps.copy()
-
-        for l in range(len(mps)):
-            transf_mps[l] = np.einsum("dD, ldr -> lDr", mpo[l], mps[l])
-
-        return transf_mps

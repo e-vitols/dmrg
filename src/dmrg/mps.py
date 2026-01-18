@@ -87,6 +87,19 @@ class MpsDriver:
         A = self.mps[self.canonical_center]
         return np.sqrt(np.vdot(A, A).real)
 
+    @staticmethod
+    def overlap(mps1, mps2):
+        """
+        Gets the norm of the MPS.
+        """
+        env = np.array([[1.0]], dtype=complex)
+        if len(mps1) != len(mps2):
+            raise ValueError("The MPSs are of different lengths!!")
+        for i, _ in enumerate(mps1):
+            env = np.einsum("lL, ldr, LdR -> rR", env, mps1[i], mps2[i].conjugate())
+
+        return env.squeeze()
+
     def canonicalize_mps(self, center, mps=None):
         """
         Puts the mps into canonical form on site 'center' with repeated singular-value decomposition.
