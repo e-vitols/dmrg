@@ -138,6 +138,7 @@ class MpoDriver:
         return _mpo
 
     def local_c(self, spin: str, dagger: bool, dim: int = 4):
+        # def local_c(self, spin: str, dagger: bool, dim: int = 4, JW=True):
         """
         Local fermionic creation/annihilation operator in the basis
         {|0>, |up>, |down>, |up down>}.
@@ -156,13 +157,14 @@ class MpoDriver:
         elif spin == "down":
             mat[2, 0] = 1
             mat[3, 1] = 1
-            # Impose anticommutation for same site-spins
+            # Impose antisymmetry for same site-spins
             mat = mat @ jw_mat
         else:
             raise ValueError(f"Unknown spin: {spin!r}")
 
         if not dagger:
             # Hermitian conjguate if annihilation operator
+            # (sufficient with transpose since the mat is real)
             mat = mat.T
 
         return mat
@@ -183,6 +185,12 @@ class MpoDriver:
 
     @staticmethod
     def apply_mpo(mpo, mps):
+        """
+        Apply operator (only local operator for now)
+
+        :returns:
+            The new, transformed MPS
+        """
         transf_mps = mps.copy()
 
         for l in range(len(mps)):
@@ -255,3 +263,65 @@ class MpoDriver:
 
         # Overall operator = creat_op * annih_op  (rightmost acts first on a ket)
         return [A @ B for A, B in zip(creat_op, annih_op)]
+
+    def num_op(self, spin: str):
+        """
+        Implements the number operator for a specific spin sector.
+        """
+        L = self.nr_sites
+        d = self.local_dim
+
+        if spin == "up":
+            a_up_dagger = self.local_c("up", True, JW=False)
+            a_up = self.local_c("up", False, JW=False)
+            n = a_up_dagger @ a_up
+        elif spin == "down":
+            a_down_dagger = self.local_c("down", True, JW=False)
+            a_down = self.local_c("down", False, JW=False)
+            n = a_down_dagger @ a_down
+
+        identity = np.eye(d)
+        zero = np.zeros((d, d))
+
+        mpo = []
+
+        # Left-most matrix (row-vector)
+        W_0 = np.array([n, identity])[:, np.newaxis]
+        mpo.append(W_0)
+
+        W_i = np.array([[identity, n], [zero, identity]])
+        for i in range(1, L - 1):
+            mpo.append(W_i)
+
+        # Right-most matrix (column-vector)
+        W_L = np.swapaxes(W_0, 0, 1)
+        mpo.append(W_L)
+
+        return mpo
+
+    def id_op(self):
+        """
+        Implements the identity operator, mainly for debugging purposes.
+        """
+        L = self.nr_sites
+        d = self.local_dim
+
+        identity = np.eye(d)
+        zero = np.zeros((d, d))
+
+        mpo = []
+
+        # Left-most matrix (row-vector)
+        W_0 = np.array([identity])
+        mpo.append(W_0[np.newaxis])
+
+        W_i = np.array([[identity, zero], [zero, identity]])
+        W_i = np.array([identity])
+        for i in range(1, L - 1):
+            mpo.append(W_i[np.newaxis])
+
+        # Right-most matrix (column-vector)
+        W_L = W_0
+        mpo.append(W_L[np.newaxis])
+
+        return mpo

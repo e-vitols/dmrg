@@ -64,7 +64,7 @@ class MpsDriver:
         """
         Gets the norm of the MPS.
         """
-        env = np.array([[1.0]], dtype=complex)
+        env = np.array([[1.0]])
         for A in self.mps:
             env = np.einsum("lL, ldr, LdR -> rR", env, A, A.conjugate())
 
@@ -100,7 +100,15 @@ class MpsDriver:
 
         return env.squeeze()
 
-    def canonicalize_mps(self, center, mps=None):
+    def normalize(self):
+        """
+        Returns the normalized MPS, assumed being in canonical form.
+        """
+        self.mps[self.canonical_center] /= self.canonical_norm()
+
+        return self.mps
+
+    def canonicalize_mps(self, center=None, mps=None):
         """
         Puts the mps into canonical form on site 'center' with repeated singular-value decomposition.
 
@@ -109,6 +117,8 @@ class MpsDriver:
         :param mps:
             The mps on which to operate. If mps=None, i.e., no mps is supplied, default to the internal self.mps, otherwise act on the supplied mps
         """
+        if center is None and self.canonical_center is not None:
+            center = self.canonical_center
 
         allowed_center = 0 <= center <= self.nr_sites
         if allowed_center is not True:
@@ -148,7 +158,7 @@ class MpsDriver:
             # Get the renormalized basis right-transformation matrix
             G = np.diag(S) @ Vh
 
-            # Transform into the renormalized/canonical (depending on if r < m_r) basis
+            # Transform to the renormalized/canonical (depending on if r < m_r) basis
             mps_next_site = mps[l + 1].copy()
             mps[l + 1] = np.einsum("lr, rdm -> ldm", G, mps_next_site)
 
@@ -175,3 +185,46 @@ class MpsDriver:
             mps[l - 1] = np.einsum("mdl, lr -> mdr", mps_next_site, G)
 
         return mps
+
+    def left_boundary(self, mps, mpo, center=None, mps2=None):
+        """
+        Gets the left boundary of the MPS up to the canonical center (assuming MPS is in canonical form).
+        """
+
+        if center is None:
+            # TODO: make this part automatic
+            center = mps.canonical_center
+
+        if mps2 is None:
+            mps2 = mps
+
+        left_boundary = np.array([[[1.0]]])
+
+        for l in range(center):
+            N, M, W = mps[l], mps2[l], mpo[l]
+            left_boundary = np.einsum(
+                "ldL, vbdc, LvR, Rcr -> lbr", N.T.conjugate(), W, left_boundary, M
+            )
+
+        return left_boundary
+
+    def right_boundary(self, mps, mpo, center=None, mps2=None):
+        """
+        Gets the right boundary of the MPS up to the canonical center (assuming MPS is in canonical form).
+        """
+
+        if center is None:
+            # TODO: make this part automatic
+            center = mps.canonical_center
+
+        if mps2 is None:
+            mps2 = mps
+
+        right_boundary = np.array([[[1.0]]])
+        for l in range(self.nr_sites - 1, center, -1):
+            N, M, W = mps[l], mps2[l], mpo[l]
+            right_boundary = np.einsum(
+                "ldL, bvcd, LvR, Rcr -> lbr", M, W, right_boundary, N.T.conjugate()
+            )
+
+        return right_boundary
