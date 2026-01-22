@@ -2,7 +2,7 @@
 import numpy as np
 
 
-class Hamiltonian:
+class HamiltonianDriver:
     def __init__(self):
         self.orbitals = None
 
@@ -27,3 +27,45 @@ class Hamiltonian:
         g = fock_drv.compute_eri(molecule, basis)
 
         return S, h, g, V_nuc
+
+    def update_integrals(self, molecule, basis):
+        """
+        Get/update AO-basis integral attributes of the MPO, imported from VeloxChem.
+
+        :param molecule:
+            A molecule-object as defined in VeloxChem.
+        :param basis:
+            The associated basis-object as defined in VeloxChem.
+        """
+        S, h, g, V_nuc = self.ham.get_ints(molecule, basis)
+        self.one_elec_ints_ao = h
+        self.two_elec_ints_ao = g
+        self.nuc_repulsion_energy = V_nuc
+        self.overlap = S
+
+    def transform_integrals(self, scf_results):
+        """
+        Transform the AO-basis integrals to MO-basis.
+
+        :param scf_results:
+            The converged SCF tensors from a VeloxChem SCF
+
+        :return:
+            Returns the transformed one- and two-electron integrals in MO-basis.
+        """
+
+        C_alpha = scf_results["C_alpha"]
+        h_ij = np.einsum(
+            "uv, ui, vj -> ij", self.one_elec_ints_ao, C_alpha, C_alpha, optimize=True
+        )
+        g_ijkl = np.einsum(
+            "uvws, ui, vj, wk, sl -> ijkl",
+            self.two_elec_ints_ao,
+            C_alpha,
+            C_alpha,
+            C_alpha,
+            C_alpha,
+            optimize=True,
+        )
+
+        return h_ij, g_ijkl

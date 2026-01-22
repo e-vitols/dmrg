@@ -2,7 +2,7 @@ import copy
 
 import numpy as np
 
-from .hamiltonian import Hamiltonian
+from .hamiltonian import HamiltonianDriver
 
 # import veloxchem as vlx
 
@@ -34,7 +34,7 @@ class MpoDriver:
         self.local_dim = None
         self.max_bond_dim = None
 
-        self.ham = Hamiltonian()
+        self.ham = HamiltonianDriver()
 
     def update_integrals(self, molecule, basis):
         """
@@ -186,7 +186,7 @@ class MpoDriver:
     @staticmethod
     def apply_mpo(mpo, mps):
         """
-        Apply operator (only local operator for now)
+        Apply operator (only local operator)
 
         :returns:
             The new, transformed MPS
@@ -315,7 +315,6 @@ class MpoDriver:
         W_0 = np.array([identity])
         mpo.append(W_0[np.newaxis])
 
-        W_i = np.array([[identity, zero], [zero, identity]])
         W_i = np.array([identity])
         for i in range(1, L - 1):
             mpo.append(W_i[np.newaxis])

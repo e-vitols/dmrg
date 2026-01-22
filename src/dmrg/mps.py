@@ -186,14 +186,14 @@ class MpsDriver:
 
         return mps
 
-    def left_boundary(self, mps, mpo, center=None, mps2=None):
+    def left_boundary(self, mpo, center=None, mps2=None):
         """
         Gets the left boundary of the MPS up to the canonical center (assuming MPS is in canonical form).
         """
-
+        mps = self.mps
         if center is None:
             # TODO: make this part automatic
-            center = mps.canonical_center
+            center = self.canonical_center
 
         if mps2 is None:
             mps2 = mps
@@ -208,14 +208,14 @@ class MpsDriver:
 
         return left_boundary
 
-    def right_boundary(self, mps, mpo, center=None, mps2=None):
+    def right_boundary(self, mpo, center=None, mps2=None):
         """
         Gets the right boundary of the MPS up to the canonical center (assuming MPS is in canonical form).
         """
-
+        mps = self.mps
         if center is None:
             # TODO: make this part automatic
-            center = mps.canonical_center
+            center = self.canonical_center
 
         if mps2 is None:
             mps2 = mps
