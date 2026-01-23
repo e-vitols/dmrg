@@ -56,3 +56,22 @@ class TestCanonicalize:
                 m_l, d, m_r = A.shape
                 right_metric = np.einsum("ldr, Ldr -> lL", A, A.conjugate()).real
                 assert np.max(np.abs(right_metric - np.eye(m_l))) < 1e-10
+
+    def test_normalized_canonicalize(self, local_dim=4, m_bonddim=8, nr_sites=6):
+        mps_drv = MpsDriver()
+        mps_drv.local_dim = local_dim
+        mps_drv.max_bond_dim = m_bonddim
+        mps_drv.nr_sites = nr_sites
+        mps_drv._initialize_random_mps()
+        mps_drv.canonicalize_mps(2)
+        mps_drv.normalize()
+
+        for center in range(nr_sites):
+            mps_drv.canonicalize_mps(center)
+            mps_drv.normalize()
+            norm_before = mps_drv.full_norm()
+
+            schmidt_norm = np.dot(mps_drv.schmidt_spectrum, mps_drv.schmidt_spectrum)
+
+            rel_err = abs(schmidt_norm - norm_before) / norm_before
+            assert rel_err < 1e-10

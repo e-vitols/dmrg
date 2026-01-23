@@ -212,6 +212,7 @@ class MpoDriver(HamiltonianDriver):
         Implements two-site operator (particle-number conserving),
         i.e., annihilation followed by creation.
         """
+        # INCORRECT currently
         creat_ind, creat_spin = creat_ind_spin
         annih_ind, annih_spin = annih_ind_spin
         creat_op = self.dress_JW(creat_ind, creat_spin, True)
@@ -260,6 +261,11 @@ class MpoDriver(HamiltonianDriver):
         """
         Implements two-site operator (particle-number conserving),
         i.e., annihilation followed by creation.
+
+        :param creat_ind_spin:
+            The site index and spin of the creation operator (tuple).
+        :param annih_ind_spin:
+            The site index and spin of the annihialtion operator (tuple).
         """
         creat_ind, creat_spin = creat_ind_spin
         annih_ind, annih_spin = annih_ind_spin
@@ -269,6 +275,41 @@ class MpoDriver(HamiltonianDriver):
 
         # Overall operator = creat_op * annih_op  (rightmost acts first on a ket)
         return [A @ B for A, B in zip(creat_op, annih_op)]
+
+    def _construct_foursite_operator(
+        self,
+        creat_ind_spin,
+        creat_ind_spin_p,
+        annih_ind_spin_p,
+        annih_ind_spin,
+        local_dim=4,
+    ):
+        """
+        Implements two-site operator (particle-number conserving),
+        i.e., annihilation followed by creation.
+
+        :param creat_ind_spin:
+            The site index and spin of the creation operator (tuple).
+        :param annih_ind_spin:
+            The site index and spin of the annihialtion operator (tuple).
+        """
+        creat_ind, creat_spin = creat_ind_spin
+        annih_ind, annih_spin = annih_ind_spin
+        creat_ind_p, creat_spin_p = creat_ind_spin_p
+        annih_ind_p, annih_spin_p = annih_ind_spin_p
+
+        creat_op = self.dress_JW(creat_ind, creat_spin, True, local_dim=local_dim)
+        annih_op = self.dress_JW(annih_ind, annih_spin, False, local_dim=local_dim)
+        creat_op_p = self.dress_JW(creat_ind_p, creat_spin_p, True, local_dim=local_dim)
+        annih_op_p = self.dress_JW(
+            annih_ind_p, annih_spin_p, False, local_dim=local_dim
+        )
+
+        # Overall operator = creat_op * annih_op  (rightmost acts first on a ket)
+        return [
+            A @ B @ C @ D
+            for A, B, C, D in zip(creat_op, creat_op_p, annih_op_p, annih_op)
+        ]
 
     def num_op(self, spin: str):
         """
@@ -330,3 +371,33 @@ class MpoDriver(HamiltonianDriver):
         mpo.append(W_L[np.newaxis])
 
         return mpo
+
+    def one_e_ham(self):
+        """
+        Implements the one-electron hamiltonian naively.
+        """
+
+        nr_sites = self.nr_sites
+        local_dim = self.local_dim
+
+        nr_terms = 2 * nr_sites**2
+
+        W = [[] for _ in range(nr_sites)]
+        W[0] = np.zeros((nr_terms, 1, local_dim, local_dim))
+        for l in range(1, nr_sites - 1):
+            W[l] = np.zeros((nr_terms, nr_terms, local_dim, local_dim))
+        W[-1] = np.zeros((1, nr_terms, local_dim, local_dim))
+
+        n = 0
+        for i in range(nr_sites):
+            for j in range(nr_sites):
+                for spin in ["up", "down"]:
+                    creat_op, annih_op = (i, spin), (j, spin)
+                    operator = self._construct_twosite_operator(creat_op, annih_op)
+                    W[0][n, 0] = operator[0]
+                    for l in range(1, nr_sites - 1):
+                        W[l][n, n] = operator[l]
+                    W[-1][0, n] = operator[-1]
+
+                    n += 1
+        return W
