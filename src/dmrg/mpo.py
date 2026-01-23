@@ -139,7 +139,7 @@ class MpoDriver(HamiltonianDriver):
             mpo.append(core[np.newaxis, :, :, np.newaxis])
         return mpo
 
-    def local_c(self, spin: str, dagger: bool, JW=True):
+    def local_c(self, spin: str, dagger: bool, JW=True, local_dim=4):
         """
         Local fermionic creation/annihilation operator in the basis
         {|0>, |up>, |down>, |up down>}.
@@ -151,7 +151,7 @@ class MpoDriver(HamiltonianDriver):
         :param JW:
             Whether to impose fermionic commutation relations with Jordan-Wigner dressing.
         """
-        local_dim = self.local_dim
+        # local_dim = self.local_dim
 
         mat = np.zeros((local_dim, local_dim))
         jw_mat = self.jordan_wigner_mat()
