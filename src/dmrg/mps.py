@@ -135,7 +135,7 @@ class MpsDriver:
                 raise ValueError("MPS is not initialized!")
             self.mps = self._canonicalize_mps(self.mps, center)
             self.canonical_center = center
-            self.schmidt_spectrum = self._get_schmidt_spectrum(mps, center)
+            self.schmidt_spectrum = self._get_schmidt_spectrum(self.mps, center)
             return self.mps
         else:
             return self._canonicalize_mps(mps, center)
