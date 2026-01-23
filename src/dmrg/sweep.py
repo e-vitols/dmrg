@@ -9,6 +9,7 @@ from .mps import MpsDriver
 # import veloxchem as vlx
 
 
-class SweepDriver:
+class SweepDriver(MpsDriver, MpoDriver):
     def __init__(self):
+        super().__init__()
         self.nsweeps = 50

@@ -108,7 +108,7 @@ class MpsDriver:
 
         return self.mps
 
-    def canonicalize_mps(self, center=None, mps=None):
+    def canonicalize_mps(self, center=None, mps=None, schmidt=False):
         """
         Puts the mps into canonical form on site 'center' with repeated singular-value decomposition.
 
@@ -126,6 +126,9 @@ class MpsDriver:
                 "The site to center on must be within the number of sites!"
             )
 
+        if schmidt and center >= self.nr_sites - 1:
+            raise ValueError("Schmidt-centered form requires center <= nr_sites - 2.")
+        """
         if mps is None:
             if self.mps is None:
                 raise ValueError("MPS is not initialized!")
@@ -134,10 +137,36 @@ class MpsDriver:
             return self.mps
         else:
             return self._canonicalize_mps(mps, center)
+        """
+        if mps is None:
+            if self.mps is None:
+                raise ValueError("MPS is not initialized!")
+            out = self._canonicalize_mps(self.mps, center, schmidt=schmidt)
+            self.canonical_center = center
+            if schmidt:
+                self.mps, S = out
+                return self.mps, S
+            else:
+                self.mps = out
+                return self.mps
+        else:
+            return self._canonicalize_mps(mps, center, schmidt=schmidt)
 
     @staticmethod
-    def _canonicalize_mps(mps, center):
-        L = len(mps)
+    def _canonicalize_mps(mps, center, schmidt=False):
+        """
+        Implements canonicalization of an MPS.
+
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+        :param center:
+            The SITE-based canonical center.
+        :param schmidt:
+            Performs an additional SVD where the bond between site center and center+1 becomes
+            the center, characterized by the singular values.
+        """
+
+        L = len(mps)  # self.nr_sites
         d = mps[0].shape[1]
 
         # Left canonicalize up to center site, left sweep
@@ -184,7 +213,22 @@ class MpsDriver:
 
             mps[l - 1] = np.einsum("mdl, lr -> mdr", mps_next_site, G)
 
-        return mps
+            if not schmidt:
+                return mps
+
+            elif schmidt:
+                m_l, d, m_r = mps[center].shape
+                U, S, Vh = np.linalg.svd(
+                    mps[center].reshape(m_l * d, m_r), full_matrices=False
+                )
+                chi = S.shape[0]
+
+                mps[center] = U.reshape(m_l, d, chi)
+                mps_next_site = mps[center + 1].copy()
+
+                # Note: here we only push the right-singular matrix onto the next site, NOT also the singular value matrix
+                mps[l + 1] = np.einsum("lr, rdm -> ldm", Vh, mps_next_site)
+                return mps, S
 
     def left_boundary(self, mpo, center=None, mps2=None):
         """

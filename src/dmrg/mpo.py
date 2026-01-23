@@ -7,7 +7,7 @@ from .hamiltonian import HamiltonianDriver
 # import veloxchem as vlx
 
 
-class MpoDriver:
+class MpoDriver(HamiltonianDriver):
     """
     Implements the MatrixProductOperator by importing the orbitals and -- specific, for each operator -- integrals from VeloxChem.
     """
@@ -20,7 +20,9 @@ class MpoDriver:
             - scf_results: The converged SCF results tensor from VeloxChem.
             - operator: Specific operator to construct, if not given, the Hamiltonian is assumed.
         """
-        # TODO: change class-name to MatrixProducOperatorConstructor/MpoConstructor
+        # inherit the attributes and methods of HamiltonianDriver
+        super().__init__()
+
         self.scf_results = None
         self.operator = "Ham"
         self.mpo = None
@@ -34,7 +36,7 @@ class MpoDriver:
         self.local_dim = None
         self.max_bond_dim = None
 
-        self.ham = HamiltonianDriver()
+        # self.ham = HamiltonianDriver()
 
     def update_integrals(self, molecule, basis):
         """
@@ -132,13 +134,12 @@ class MpoDriver:
         return operator_str
 
     def mpo_converted_JW(self, jw_string):
-        _mpo = []
+        mpo = []
         for core in jw_string:
-            _mpo.append(core[np.newaxis, :, :, np.newaxis])
-        return _mpo
+            mpo.append(core[np.newaxis, :, :, np.newaxis])
+        return mpo
 
-    def local_c(self, spin: str, dagger: bool, dim: int = 4):
-        # def local_c(self, spin: str, dagger: bool, dim: int = 4, JW=True):
+    def local_c(self, spin: str, dagger: bool, JW=True):
         """
         Local fermionic creation/annihilation operator in the basis
         {|0>, |up>, |down>, |up down>}.
@@ -147,8 +148,12 @@ class MpoDriver:
             The spin of the operator; 'up' or 'down'.
         :param dagger:
             The kind of operator: True -> creation, False -> annihilation
+        :param JW:
+            Whether to impose fermionic commutation relations with Jordan-Wigner dressing.
         """
-        mat = np.zeros((dim, dim))
+        local_dim = self.local_dim
+
+        mat = np.zeros((local_dim, local_dim))
         jw_mat = self.jordan_wigner_mat()
 
         if spin == "up":
@@ -158,7 +163,8 @@ class MpoDriver:
             mat[2, 0] = 1
             mat[3, 1] = 1
             # Impose antisymmetry for same site-spins
-            mat = mat @ jw_mat
+            if JW:
+                mat = mat @ jw_mat
         else:
             raise ValueError(f"Unknown spin: {spin!r}")
 
