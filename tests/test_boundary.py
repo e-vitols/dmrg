@@ -18,7 +18,7 @@ class TestBoundary:
         mps_drv.max_bond_dim = m_bonddim
         mps_drv.nr_sites = nr_sites
         mps_drv._initialize_random_mps()
-        mps_drv.canonicalize_mps(5)
+        mps_drv.canonical_form(5)
         mps_drv.normalize()
 
         identity_operator = mpo_drv.id_op()
@@ -29,14 +29,14 @@ class TestBoundary:
 
         assert np.abs(lb - 1) < 1e-8
 
-        mps_drv.canonicalize_mps(0)
+        mps_drv.canonical_form(0)
         rb = mps_drv.left_boundary(
             identity_operator, center=mps_drv.canonical_center - 1
         )
 
         assert np.abs(rb - 1) < 1e-8
 
-        mps_drv.canonicalize_mps(3)
+        mps_drv.canonical_form(3)
 
         lb = mps_drv.left_boundary(identity_operator, center=mps_drv.canonical_center)
         rb = mps_drv.right_boundary(

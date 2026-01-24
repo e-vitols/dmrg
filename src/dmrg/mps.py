@@ -109,12 +109,12 @@ class MpsDriver:
 
         return self.mps
 
-    def canonicalize_mps(self, center=None, mps=None, schmidt=False):
+    def canonical_form(self, center=None, mps=None, schmidt=False):
         """
         Puts the mps into canonical form on site 'center' with repeated singular-value decomposition.
 
         :param center:
-            The site on which the MPS is canoncalized with respect to.
+            The site on which the MPS is canoncalized with respect to. (integer)
         :param mps:
             The mps on which to operate. If mps=None, i.e., no mps is supplied, default to the internal self.mps, otherwise act on the supplied mps
         """
@@ -131,17 +131,18 @@ class MpsDriver:
             raise ValueError("Schmidt-centered form requires center <= nr_sites - 2.")
 
         if mps is None:
+            self.canonical_center = center
             if self.mps is None:
                 raise ValueError("MPS is not initialized!")
-            self.mps = self._canonicalize_mps(self.mps, center)
-            self.canonical_center = center
+
+            self.mps = self._canonicalize(self.mps, center)
             self.schmidt_spectrum = self._get_schmidt_spectrum(self.mps, center)
             return self.mps
         else:
-            return self._canonicalize_mps(mps, center)
+            return self._canonicalize(mps, center)
 
     @staticmethod
-    def _canonicalize_mps(mps, center):
+    def _canonicalize(mps, center):
         """
         Implements canonicalization of an MPS.
 
@@ -157,7 +158,7 @@ class MpsDriver:
         L = len(mps)  # self.nr_sites
         d = mps[0].shape[1]
 
-        # Left canonicalize up to center site, left sweep
+        # Left canonicalize up to center site, right sweep
         for l in range(center):
             # Get bond dimension at site l
             m_l, _, m_r = mps[l].shape
@@ -179,6 +180,7 @@ class MpsDriver:
             mps_next_site = mps[l + 1].copy()
             mps[l + 1] = np.einsum("lr, rdm -> ldm", G, mps_next_site)
 
+        # Right canonicalize up to center site, left sweep
         for l in range(L - 1, center, -1):
             # Get bond dimension at site l
             m_l, _, m_r = mps[l].shape
@@ -220,7 +222,12 @@ class MpsDriver:
         for l in range(center):
             N, M, W = mps[l], mps2[l], mpo[l]
             left_boundary = np.einsum(
-                "ldL, vbdc, LvR, Rcr -> lbr", N.T.conjugate(), W, left_boundary, M
+                "ldL, vbdc, LvR, Rcr -> lbr",
+                N.T.conjugate(),
+                W,
+                left_boundary,
+                M,
+                optimize=True,
             )
 
         return left_boundary
@@ -241,13 +248,18 @@ class MpsDriver:
         for l in range(self.nr_sites - 1, center, -1):
             N, M, W = mps[l], mps2[l], mpo[l]
             right_boundary = np.einsum(
-                "ldL, bvcd, LvR, Rcr -> lbr", M, W, right_boundary, N.T.conjugate()
+                "ldL, bvcd, LvR, Rcr -> lbr",
+                M,
+                W,
+                right_boundary,
+                N.T.conjugate(),
+                optimize=True,
             )
 
         return right_boundary
 
     @staticmethod
-    def _get_schmidt_spectrum(mps, center):
+    def _get_schmidt_spectrum(mps, center: int):
         """
         Gets the schmidt spectrum at the bond between site center and center+1
         """
@@ -262,3 +274,74 @@ class MpsDriver:
         # mps_next_site = self.mps[center + 1].copy()
         # self.mps[l + 1] = np.einsum("lr, rdm -> ldm", Vh, mps_next_site)
         return S
+
+    def get_twosite(self, center=None):
+        """
+        Docstring for get_twosite
+
+        :param self: Description
+        :param center:
+            The center. (bool)
+        """
+        if center is None:
+            center = self.canonical_center
+
+        allowed_center = 0 <= center <= self.nr_sites - 2
+        if allowed_center is not True:
+            raise ValueError(
+                "The bond to center on must be within the number of sites-1!"
+            )
+
+        left_center = center
+        right_center = center + 1
+        two_site_tensor = np.einsum(
+            "ldr, rDR -> ldDR",
+            self.mps[left_center],
+            self.mps[right_center],
+            optimize=True,
+        )
+        l, d, D, r = two_site_tensor.shape
+
+        return two_site_tensor.reshape(l, d * D, r)
+
+    def split_twosite(self, theta, direction, truncate=False):
+        """
+        Docstring for split_twosite
+
+        :param theta:
+            The two-site tensor. (array)
+        :param direction:
+            The sweep direction. (str)
+        :param truncate:
+            Whether to truncate the SVD to the set self.max_bond_dim. (bool)
+        """
+        l, d, D, R = theta.shape
+        U, S, Vh = np.linalg.svd(theta.reshape(l * d, D * R), full_matrices=False)
+
+        if truncate:
+            chi = min(self.max_bond_dim, len(S))
+            S = S[:chi]
+            U = U[:, :chi]
+            Vh = Vh[:chi]
+
+        if direction == "right":
+            self.mps[self.canonical_center] = U.reshape(l, d, l)
+            self.mps[self.canonical_center + 1] = (np.diag(S) @ Vh).reshape(l, d, l)
+        elif direction == "left":
+            self.mps[self.canonical_center] = (U @ np.diag(S)).reshape(l, d, l)
+            self.mps[self.canonical_center + 1] = Vh.reshape(l, d, l)
+
+    def get_expectation_value(self, mpo, center=None):
+        """
+        Get the expectation value of an operator (given as an MPO).
+
+        :param self: Description
+        """
+
+        if center is None:
+            center = self.canonical_center
+
+        left_boundary = self.left_boundary(mpo, center=center + 1)
+        right_boundary = self.right_boundary(mpo, center=center)
+
+        return np.einsum("ldr, rdl", left_boundary, right_boundary)

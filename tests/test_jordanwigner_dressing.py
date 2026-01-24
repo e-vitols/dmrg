@@ -24,7 +24,7 @@ class TestJordanWigner:
         mps_drv.max_bond_dim = m_bonddim
         mps_drv.nr_sites = nr_sites
         mps_drv._initialize_random_mps()
-        mps_drv.canonicalize_mps(0)
+        mps_drv.canonical_form(0)
         mps = mps_drv.mps
 
         mpo_drv = MpoDriver()
@@ -99,7 +99,7 @@ class TestJordanWigner:
         mps_drv.max_bond_dim = m_bonddim
         mps_drv.nr_sites = nr_sites
         mps_drv._initialize_random_mps()
-        mps_drv.canonicalize_mps(canonical_center)
+        mps_drv.canonical_form(canonical_center)
         mps = mps_drv.mps
 
         mpo_drv = MpoDriver()
@@ -111,7 +111,7 @@ class TestJordanWigner:
         second_transf_mps = mpo_drv.apply_mpo(mpo, transf_mps)
         mps_drv.mps = second_transf_mps
 
-        mps_drv.canonicalize_mps(canonical_center)
+        mps_drv.canonical_form(canonical_center)
 
         norm = mps_drv.full_norm()
         assert norm < 1e-10

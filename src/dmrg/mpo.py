@@ -3,11 +3,12 @@ import copy
 import numpy as np
 
 from .hamiltonian import HamiltonianDriver
+from .mps import MpsDriver
 
 # import veloxchem as vlx
 
 
-class MpoDriver(HamiltonianDriver):
+class MpoDriver(MpsDriver, HamiltonianDriver):
     """
     Implements the MatrixProductOperator by importing the orbitals and -- specific, for each operator -- integrals from VeloxChem.
     """
@@ -20,8 +21,7 @@ class MpoDriver(HamiltonianDriver):
             - scf_results: The converged SCF results tensor from VeloxChem.
             - operator: Specific operator to construct, if not given, the Hamiltonian is assumed.
         """
-        # inherit the attributes and methods of HamiltonianDriver
-        super().__init__()
+        # TODO: create an initalize function requiring: self.local_dim and self.nr_sites
 
         self.scf_results = None
         self.operator = "Ham"
@@ -35,6 +35,9 @@ class MpoDriver(HamiltonianDriver):
         self.nr_sites = None
         self.local_dim = None
         self.max_bond_dim = None
+        self.nr_of_particles = None
+        # inherit the attributes and methods of MpsDriver, HamiltonianDriver
+        super().__init__()
 
         # self.ham = HamiltonianDriver()
 
@@ -119,7 +122,7 @@ class MpoDriver(HamiltonianDriver):
         Return the Jordan-Wigner transformed operator string.
         """
         jw_mat = self.jordan_wigner_mat(local_dim=local_dim)
-        identity = np.eye(local_dim)
+        identity = np.eye(local_dim, dtype=np.float64)
         L = self.nr_sites
 
         operator_str = []
@@ -157,11 +160,11 @@ class MpoDriver(HamiltonianDriver):
         jw_mat = self.jordan_wigner_mat()
 
         if spin == "up":
-            mat[1, 0] = 1
-            mat[3, 2] = 1
+            mat[1, 0] = 1.0
+            mat[3, 2] = 1.0
         elif spin == "down":
-            mat[2, 0] = 1
-            mat[3, 1] = 1
+            mat[2, 0] = 1.0
+            mat[3, 1] = 1.0
             # Impose antisymmetry for same site-spins
             if JW:
                 mat = mat @ jw_mat
@@ -187,7 +190,7 @@ class MpoDriver(HamiltonianDriver):
         if local_dim != 4:
             raise ValueError("Only implemented for local dimension 4")
 
-        return np.diag((1, -1, -1, 1))
+        return np.diag((1.0, -1.0, -1.0, 1.0))
 
     @staticmethod
     def apply_mpo(mpo, mps):
@@ -333,7 +336,7 @@ class MpoDriver(HamiltonianDriver):
         mpo = []
 
         # Left-most matrix (row-vector)
-        W_0 = np.array([n, identity])[:, np.newaxis]
+        W_0 = np.array([n, identity])[np.newaxis]
         mpo.append(W_0)
 
         W_i = np.array([[identity, n], [zero, identity]])
@@ -401,3 +404,34 @@ class MpoDriver(HamiltonianDriver):
 
                     n += 1
         return W
+
+    def get_twosite_mpo(self, mpo, center=None):
+        """
+        Docstring for get_twosite
+
+        :param mpo:
+            The full MPO.
+        :param center:
+            The center. (bool)
+
+        :return:
+            The two-site MPO with fused physical indices d**2. (array)
+        """
+        if center is None:
+            center = self.canonical_center
+
+        allowed_center = 0 <= center <= self.nr_sites - 2
+        if allowed_center is not True:
+            raise ValueError(
+                "The bond to center on must be within the number of sites-1!"
+            )
+
+        left_center = center
+        right_center = center + 1
+
+        tmp = np.einsum(
+            "abcd, bBCD -> aBcCdD", mpo[left_center], mpo[right_center], optimize=True
+        )
+        l, r, d = tmp.shape[0], tmp.shape[1], tmp.shape[2]
+        W2 = tmp.reshape(l, r, d**2, d**2)
+        return W2

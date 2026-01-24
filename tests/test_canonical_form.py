@@ -14,7 +14,7 @@ class TestCanonicalize:
         mps_drv.nr_sites = nr_sites
         mps_drv._initialize_random_mps()
         mps = mps_drv.mps
-        mps_drv.canonicalize_mps(5)
+        mps_drv.canonical_form(5)
 
         orthonorm = np.einsum(
             "ldr, ldR -> rR", mps_drv.mps[0], mps_drv.mps[0].conjugate()
@@ -33,7 +33,7 @@ class TestCanonicalize:
         norm_before = mps_drv.full_norm()
 
         for center in range(nr_sites):
-            mps_drv.canonicalize_mps(center)
+            mps_drv.canonical_form(center)
 
             norm = mps_drv.full_norm()
 
@@ -63,11 +63,11 @@ class TestCanonicalize:
         mps_drv.max_bond_dim = m_bonddim
         mps_drv.nr_sites = nr_sites
         mps_drv._initialize_random_mps()
-        mps_drv.canonicalize_mps(2)
+        mps_drv.canonical_form(2)
         mps_drv.normalize()
 
         for center in range(nr_sites):
-            mps_drv.canonicalize_mps(center)
+            mps_drv.canonical_form(center)
             mps_drv.normalize()
             norm_before = mps_drv.full_norm()
 
