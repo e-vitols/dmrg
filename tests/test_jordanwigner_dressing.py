@@ -32,8 +32,8 @@ class TestJordanWigner:
 
         mpo = mpo_drv.dress_JW(site, spin, creation)
 
-        transf_mps = mpo_drv.apply_mpo(mpo, mps)
-        second_transf_mps = mpo_drv.apply_mpo(mpo, transf_mps)
+        transf_mps = mpo_drv.apply_local_mpo(mpo, mps)
+        second_transf_mps = mpo_drv.apply_local_mpo(mpo, transf_mps)
 
         mps_drv.mps = second_transf_mps
         norm = mps_drv.full_norm()
@@ -64,11 +64,11 @@ class TestJordanWigner:
                         mpo_i = mpo_drv.dress_JW(site1, spin, creation)
                         mpo_j = mpo_drv.dress_JW(site2, spin, creation)
 
-                        mps_i = mpo_drv.apply_mpo(mpo_i, mps1)
-                        mps_ij = mpo_drv.apply_mpo(mpo_j, mps_i)
+                        mps_i = mpo_drv.apply_local_mpo(mpo_i, mps1)
+                        mps_ij = mpo_drv.apply_local_mpo(mpo_j, mps_i)
 
-                        mps_j = mpo_drv.apply_mpo(mpo_j, mps2)
-                        mps_ji = mpo_drv.apply_mpo(mpo_i, mps_j)
+                        mps_j = mpo_drv.apply_local_mpo(mpo_j, mps2)
+                        mps_ji = mpo_drv.apply_local_mpo(mpo_i, mps_j)
 
                         ovlp_2 = (
                             mps_drv.overlap(mps_ij, mps_ij)
@@ -107,8 +107,8 @@ class TestJordanWigner:
 
         mpo = mpo_drv.dress_JW(site, spin, creation)
 
-        transf_mps = mpo_drv.apply_mpo(mpo, mps)
-        second_transf_mps = mpo_drv.apply_mpo(mpo, transf_mps)
+        transf_mps = mpo_drv.apply_local_mpo(mpo, mps)
+        second_transf_mps = mpo_drv.apply_local_mpo(mpo, transf_mps)
         mps_drv.mps = second_transf_mps
 
         mps_drv.canonical_form(canonical_center)
