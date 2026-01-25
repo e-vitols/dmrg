@@ -205,11 +205,13 @@ class MpsDriver:
 
         return mps
 
-    def left_boundary(self, mpo, center=None, mps2=None):
+    def left_boundary(self, mpo, mps=None, center=None, mps2=None):
         """
         Gets the left boundary of the MPS up to the canonical center (assuming MPS is in canonical form).
         """
-        mps = self.mps
+        if mps is None:
+            mps = self.mps
+
         if center is None:
             # TODO: make this part automatic
             center = self.canonical_center
@@ -232,11 +234,12 @@ class MpsDriver:
 
         return left_boundary
 
-    def right_boundary(self, mpo, center=None, mps2=None):
+    def right_boundary(self, mpo, mps=None, center=None, mps2=None):
         """
         Gets the right boundary of the MPS up to the canonical center (assuming MPS is in canonical form).
         """
-        mps = self.mps
+        if mps is None:
+            mps = self.mps
         if center is None:
             # TODO: make this part automatic
             center = self.canonical_center
@@ -275,7 +278,7 @@ class MpsDriver:
         # self.mps[l + 1] = np.einsum("lr, rdm -> ldm", Vh, mps_next_site)
         return S
 
-    def get_twosite(self, center=None):
+    def get_twosite(self, center=None, mps=None):
         """
         Docstring for get_twosite
 
@@ -283,6 +286,9 @@ class MpsDriver:
         :param center:
             The center. (bool)
         """
+        if mps is None:
+            mps = self.mps
+
         if center is None:
             center = self.canonical_center
 
@@ -296,8 +302,8 @@ class MpsDriver:
         right_center = center + 1
         two_site_tensor = np.einsum(
             "ldr, rDR -> ldDR",
-            self.mps[left_center],
-            self.mps[right_center],
+            mps[left_center],
+            mps[right_center],
             optimize=True,
         )
         l, d, D, r = two_site_tensor.shape

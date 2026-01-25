@@ -35,7 +35,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         self.nr_sites = None
         self.local_dim = None
         self.max_bond_dim = None
-        self.nr_of_particles = None
+        self.nr_particles = None
         # inherit the attributes and methods of MpsDriver, HamiltonianDriver
         super().__init__()
 
@@ -193,12 +193,12 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         return np.diag((1.0, -1.0, -1.0, 1.0))
 
     @staticmethod
-    def apply_mpo(mpo, mps):
+    def apply_local_mpo(mpo, mps):
         """
         Apply operator (only local operator)
 
         :returns:
-            The new, transformed MPS
+            The transformed MPS
         """
         transf_mps = mps.copy()
 
@@ -435,3 +435,178 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         l, r, d = tmp.shape[0], tmp.shape[1], tmp.shape[2]
         W2 = tmp.reshape(l, r, d**2, d**2)
         return W2
+
+    def qc_hamiltonian(self, t_ij, v_ijkl):
+        """
+        Constructs the full electronic Hamiltonian as an MPO.
+
+        :param h_ij:
+            The one-electron integrals in MO-basis.
+        :param v_ijkl:
+            The two-electron integrals in MO-basis.
+        """
+        nr_sites = self.nr_sites
+        nr_particles = self.nr_particles
+        local_dim = self.local_dim
+        nr_terms = 4 * nr_sites**4
+
+        W_full = [[] for _ in range(nr_sites)]
+        W_full[0] = np.zeros((1, nr_terms, local_dim, local_dim))
+        for l in range(1, nr_sites - 1):
+            W_full[l] = np.zeros((nr_terms, nr_terms, local_dim, local_dim))
+        W_full[-1] = np.zeros((nr_terms, 1, local_dim, local_dim))
+
+        n = 0
+        for i in range(nr_sites):
+            for j in range(nr_sites):
+                for k in range(nr_sites):
+                    for l in range(nr_sites):
+                        for spin in ["up", "down"]:
+                            for spin_p in ["up", "down"]:
+                                creat_op, annih_op = (i, spin), (j, spin)
+                                creat_op_p, annih_op_p = (k, spin_p), (l, spin_p)
+
+                                one_elec_coeff = 0
+                                if j == l:
+                                    # one_elec_coeff_ik = 1
+                                    # one_elec_coeff += t_ij[i,k]
+                                    one_elec_coeff += 1
+                                elif i == k:
+                                    # one_elec_coeff_jl = 1
+                                    # one_elec_coeff += t_ij[j,l]
+                                    one_elec_coeff += 1
+                                one_elec_coeff /= nr_particles - 1
+
+                                operator = self._construct_foursite_operator(
+                                    creat_op, creat_op_p, annih_op_p, annih_op
+                                )
+                                two_elec_coeff = 1.0
+
+                                # Include coefficient by scaling only the first MPO-tensor
+                                operator[0] *= 0.5 * (one_elec_coeff + two_elec_coeff)
+
+                                W_full[0][0, n] = operator[0]
+                                for l in range(1, nr_sites - 1):
+                                    W_full[l][n, n] = operator[l]
+                                W_full[-1][n, 0] = operator[-1]
+
+                                n += 1
+        return W_full
+
+    def get_effective_matvec(self, mpo, mps=None, center=None, two_site=True):
+        """
+        Docstring for get_effective_op
+
+        :param mpo:
+            The MPO of which we get the effective one. (list of arrays)
+        :param center:
+            The center at which we get the effective operator, i.e., centered at the bond between site center and center+1. (int)
+        :param two_site:
+            Whether to generate the effective two-site (True) or one-site (False). (bool)
+        """
+        if center is None:
+            center = self.canonical_center
+
+        left_center = center
+        right_center = center + 1
+
+        left_boundary = self.left_boundary(mpo, mps=mps, center=left_center)
+        right_boundary = self.right_boundary(mpo, mps=mps, center=right_center)
+
+        if mps is not None:
+            P = self.get_twosite(center=center, mps=mps)
+
+        tmp = np.einsum(
+            "abcd, bBCD -> aBcCdD", mpo[left_center], mpo[right_center], optimize=True
+        )
+        l, r, d = tmp.shape[0], tmp.shape[1], tmp.shape[2]
+        W2 = tmp.reshape(l, r, d**2, d**2)
+
+        matvec = np.einsum(
+            "bcTt, Lbd, dte, ecR -> LTR",
+            W2,
+            left_boundary,
+            P,
+            right_boundary,
+            optimize=True,
+        )
+
+        return matvec
+
+    def _get_effective_matvec(self, mpo, mps=None, center=None, two_site=True):
+        """
+        Docstring for get_effective_op
+        NOTE: this avoids forming the two-site MPO intermediate
+
+        :param mpo:
+            The MPO of which we get the effective one. (list of arrays)
+        :param center:
+            The center at which we get the effective operator, i.e., centered at the bond between site center and center+1. (int)
+        :param two_site:
+            Whether to generate the effective two-site (True) or one-site (False). (bool)
+        """
+        if center is None:
+            center = self.canonical_center
+
+        left_center = center
+        right_center = center + 1
+
+        left_boundary = self.left_boundary(mpo, mps=mps, center=left_center)
+        right_boundary = self.right_boundary(mpo, mps=mps, center=right_center)
+
+        if mps is not None:
+            P = self.get_twosite(center=center, mps=mps)
+
+        D = mpo[left_center].shape[3]
+        E = mpo[right_center].shape[3]
+        P = P.reshape(P.shape[0], D, E, P.shape[2])
+        # avoid explicit W2 construction: contract mpo[left_center] and mpo[right_center] on the fly
+        matvec = np.einsum(
+            "bmSA, mcTB, Lbd, dABe, ecR -> LSTR",
+            mpo[left_center],
+            mpo[right_center],
+            left_boundary,
+            P,
+            right_boundary,
+            optimize=True,
+        )
+
+        matvec = matvec.reshape(
+            matvec.shape[0], matvec.shape[1] * matvec.shape[2], matvec.shape[3]
+        )
+
+        return matvec
+
+    def apply_eff_ham(self, L, Wl, Wr, R, X):
+        if X.ndim == 3:
+            Dl_p, dd_in, Dr_p = X.shape
+            d1 = Wl.shape[3]
+            d2 = Wr.shape[3]
+            assert dd_in == d1 * d2
+            X = X.reshape(Dl_p, d1, d2, Dr_p)
+
+        Y = np.einsum(
+            "b a ap, b m s sp, m B t tp, B Ap A, ap sp tp Ap -> a s t A",
+            L,
+            Wl,
+            Wr,
+            R,
+            X,
+            optimize=True,
+        )
+
+        return Y
+
+    def effective_matvec(self, mps_drv, mpo, center, two_site=True):
+        if two_site:
+            # Environments excluding the 2-site block
+            L = mps_drv.left_boundary(mpo, center=center)
+            R = mps_drv.right_boundary(mpo, center=center + 1)
+
+            Wl = mpo[center]
+            Wr = mpo[center + 1]
+
+            def heff_apply(X):
+                return self.apply_eff_ham(L, Wl, Wr, R, X)
+
+            return heff_apply
