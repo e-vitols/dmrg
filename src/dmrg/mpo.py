@@ -203,7 +203,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         transf_mps = mps.copy()
 
         for l in range(len(mps)):
-            transf_mps[l] = np.einsum("dD, ldr -> lDr", mpo[l], mps[l])
+            transf_mps[l] = np.einsum("Dd, ldr -> lDr", mpo[l], mps[l])
 
         return transf_mps
 
