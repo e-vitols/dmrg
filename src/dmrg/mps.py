@@ -40,16 +40,21 @@ class MpsDriver:
 
         mps = []
 
+        def chi(i):
+            return max(1, min(m, d ** (i + 1), d ** (L - (i + 1))))
+
         # Left-most matrix (row-vector)
         m_l = 1
-        m_r = max(1, min(m, d))
+        # m_r = max(1, min(m, d))
+        m_r = chi(0)
         A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
         mps.append(A)
 
         # The middle sites (matrices) are built iteratively, taking the shape of the previous sites right dimension for the new left
         for i in range(1, L - 1):
             m_l = mps[-1].shape[2]
-            m_r = max(1, min(m, d))
+            # m_r = max(1, min(m, d))
+            m_r = chi(i)
             A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
             mps.append(A)
 
@@ -306,9 +311,9 @@ class MpsDriver:
             mps[right_center],
             optimize=True,
         )
-        l, d, D, r = two_site_tensor.shape
+        l, d1, d2, r = two_site_tensor.shape
 
-        return two_site_tensor.reshape(l, d * D, r)
+        return two_site_tensor.reshape(l, d1 * d2, r)
 
     def split_twosite(self, theta, direction, truncate=False):
         """
@@ -321,21 +326,40 @@ class MpsDriver:
         :param truncate:
             Whether to truncate the SVD to the set self.max_bond_dim. (bool)
         """
-        l, d, D, R = theta.shape
-        U, S, Vh = np.linalg.svd(theta.reshape(l * d, D * R), full_matrices=False)
+        l, d1, d2, r = theta.shape
+        U, S, Vh = np.linalg.svd(theta.reshape(l * d1, d2 * r), full_matrices=False)
 
+        chi_full = S.size
+        chi = chi_full
+
+        schur_complement = 0
         if truncate:
-            chi = min(self.max_bond_dim, len(S))
+            chi = min(self.max_bond_dim, chi_full)
+            # S_full
+            # truncation error/schur complement
+            schur_complement = np.sum(S[chi:])
             S = S[:chi]
             U = U[:, :chi]
             Vh = Vh[:chi]
 
+        new_canonical_center = self.canonical_center
         if direction == "right":
-            self.mps[self.canonical_center] = U.reshape(l, d, l)
-            self.mps[self.canonical_center + 1] = (np.diag(S) @ Vh).reshape(l, d, l)
+            self.mps[self.canonical_center] = U.reshape(l, d1, chi)
+            self.mps[self.canonical_center + 1] = (np.diag(S) @ Vh).reshape(chi, d2, l)
+            # Retain normalization
+            self.mps[self.canonical_center + 1] /= 1 - schur_complement
+            # self.canonical_center += 1
+            new_canonical_center += 1
+
         elif direction == "left":
-            self.mps[self.canonical_center] = (U @ np.diag(S)).reshape(l, d, l)
-            self.mps[self.canonical_center + 1] = Vh.reshape(l, d, l)
+            self.mps[self.canonical_center] = (U @ np.diag(S)).reshape(l, d1, chi)
+            # Retain normalization
+            self.mps[self.canonical_center] /= 1 - schur_complement
+            self.mps[self.canonical_center + 1] = Vh.reshape(chi, d2, l)
+            # self.canonical_center -= 1
+            new_canonical_center -= 1
+
+        return new_canonical_center, self.mps
 
     def get_expectation_value(self, mpo, center=None):
         """
@@ -350,4 +374,5 @@ class MpsDriver:
         left_boundary = self.left_boundary(mpo, center=center + 1)
         right_boundary = self.right_boundary(mpo, center=center)
 
+        # TODO: replace einsum
         return np.einsum("ldr, rdl", left_boundary, right_boundary)

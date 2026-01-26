@@ -493,7 +493,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
                                 n += 1
         return W_full
 
-    def get_effective_matvec(self, mpo, mps=None, center=None, two_site=True):
+    def old_apply_effective_matvec(self, mpo, mps=None, center=None, two_site=True):
         """
         Docstring for get_effective_op
 
@@ -533,10 +533,11 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
 
         return matvec
 
-    def _get_effective_matvec(self, mpo, mps=None, center=None, two_site=True):
+    def _apply_effective_ham_currsite(self, mpo, mps=None, center=None, two_site=True):
         """
         Docstring for get_effective_op
-        NOTE: this avoids forming the two-site MPO intermediate
+        NOTE: Included for bugfixing purposes
+        NOTE: this avoids forming the two-site MPO intermediate.
 
         :param mpo:
             The MPO of which we get the effective one. (list of arrays)
@@ -551,8 +552,8 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         left_center = center
         right_center = center + 1
 
-        left_boundary = self.left_boundary(mpo, mps=mps, center=left_center)
-        right_boundary = self.right_boundary(mpo, mps=mps, center=right_center)
+        L = self.left_boundary(mpo, mps=mps, center=left_center)
+        R = self.right_boundary(mpo, mps=mps, center=right_center)
 
         if mps is not None:
             P = self.get_twosite(center=center, mps=mps)
@@ -560,14 +561,14 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         D = mpo[left_center].shape[3]
         E = mpo[right_center].shape[3]
         P = P.reshape(P.shape[0], D, E, P.shape[2])
-        # avoid explicit W2 construction: contract mpo[left_center] and mpo[right_center] on the fly
+        # avoid explicit W2 construction: contract mpo[left_center] and mpo[right_center] on the fly instead
         matvec = np.einsum(
             "bmSA, mcTB, Lbd, dABe, ecR -> LSTR",
             mpo[left_center],
             mpo[right_center],
-            left_boundary,
+            L,
             P,
-            right_boundary,
+            R,
             optimize=True,
         )
 
@@ -576,37 +577,3 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         )
 
         return matvec
-
-    def apply_eff_ham(self, L, Wl, Wr, R, X):
-        if X.ndim == 3:
-            Dl_p, dd_in, Dr_p = X.shape
-            d1 = Wl.shape[3]
-            d2 = Wr.shape[3]
-            assert dd_in == d1 * d2
-            X = X.reshape(Dl_p, d1, d2, Dr_p)
-
-        Y = np.einsum(
-            "b a ap, b m s sp, m B t tp, B Ap A, ap sp tp Ap -> a s t A",
-            L,
-            Wl,
-            Wr,
-            R,
-            X,
-            optimize=True,
-        )
-
-        return Y
-
-    def effective_matvec(self, mps_drv, mpo, center, two_site=True):
-        if two_site:
-            # Environments excluding the 2-site block
-            L = mps_drv.left_boundary(mpo, center=center)
-            R = mps_drv.right_boundary(mpo, center=center + 1)
-
-            Wl = mpo[center]
-            Wr = mpo[center + 1]
-
-            def heff_apply(X):
-                return self.apply_eff_ham(L, Wl, Wr, R, X)
-
-            return heff_apply
