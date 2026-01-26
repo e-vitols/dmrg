@@ -45,7 +45,6 @@ class TestOperator:
         exp_value_spin_up = mps_drv.get_expectation_value(
             mpo_drv.num_op("up"), center=2
         )
-        print(exp_value_spin_up.real)
 
         assert np.abs(exp_value_spin_up.imag) < 1e-9
         assert np.abs(exp_value_spin_up.real - 2) < 1e-6
