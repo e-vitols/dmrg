@@ -486,8 +486,8 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
                                 operator[0] *= 0.5 * (one_elec_coeff + two_elec_coeff)
 
                                 W_full[0][0, n] = operator[0]
-                                for l in range(1, nr_sites - 1):
-                                    W_full[l][n, n] = operator[l]
+                                for l_index in range(1, nr_sites - 1):
+                                    W_full[l_index][n, n] = operator[l_index]
                                 W_full[-1][n, 0] = operator[-1]
 
                                 n += 1

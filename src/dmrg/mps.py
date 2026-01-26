@@ -313,7 +313,8 @@ class MpsDriver:
         )
         l, d1, d2, r = two_site_tensor.shape
 
-        return two_site_tensor.reshape(l, d1 * d2, r)
+        # return two_site_tensor.reshape(l, d1 * d2, r)
+        return two_site_tensor.reshape(l, d1, d2, r)
 
     def split_twosite(self, theta, direction, truncate=False):
         """
@@ -375,4 +376,8 @@ class MpsDriver:
         right_boundary = self.right_boundary(mpo, center=center)
 
         # TODO: replace einsum
-        return np.einsum("ldr, rdl", left_boundary, right_boundary)
+        exp_val = np.einsum("ldr, rdl", left_boundary, right_boundary)
+        if np.abs(exp_val.imag) < 1e-14:
+            return exp_val.real
+        else:
+            return exp_val
