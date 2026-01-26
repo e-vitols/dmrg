@@ -2,7 +2,6 @@ name: vlxdmrgenv
 channels:
   - conda-forge
   - veloxchem
-  - tbmasood
 dependencies:
   - python>=3.10
   - jupyterlab
@@ -16,5 +15,3 @@ dependencies:
   - veloxchem
   - dftd4-python
   - xtb
-  - cppe
-  - valet
