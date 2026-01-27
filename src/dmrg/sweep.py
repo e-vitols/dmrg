@@ -14,23 +14,23 @@ class SweepDriver:
     # def __init__(self):
     def __init__(self, *, mps_drv=None, mpo_drv=None, **kwargs):
         if mps_drv is not None:
-            self.mps = mps_drv
+            self.mps_drv = mps_drv
         else:
             MpsDriver(**kwargs)
 
         if mpo_drv is not None:
-            self.mpo = mpo_drv
+            self.mpo_drv = mpo_drv
         else:
             MpoDriver(**kwargs)
 
-        self.nsweeps = 50
+        self.nr_sweeps = 50
 
     def __getattr__(self, name):
         # try mps first, then mpo
-        if hasattr(self.mps, name):
-            return getattr(self.mps, name)
-        if hasattr(self.mpo, name):
-            return getattr(self.mpo, name)
+        if hasattr(self.mps_drv, name):
+            return getattr(self.mps_drv, name)
+        if hasattr(self.mpo_drv, name):
+            return getattr(self.mpo_drv, name)
         raise AttributeError(name)
 
     def apply_eff_ham(self, L, Wl, Wr, R, X):
@@ -99,3 +99,48 @@ class SweepDriver:
         Theta_opt = v[:, 0].reshape(shape)  # (Dl, dd, Dr)
         E0 = w[0].real
         return E0, Theta_opt
+
+    def compute(self, mps, mpo, center=0, convergence_thr=1e-6):
+        """
+        Starts with left-to-right sweep
+        """
+        self.canonical_form(center=center, mps=mps)
+        mps = self.normalize(mps=mps, center=center)
+        self.mps_drv.mps = mps
+
+        self.E_0 = 0
+        self.converged = False
+        for sweep in range(self.nr_sweeps):
+            print(f"Sweep nr. {sweep+1}")
+
+            # right-sweep
+            for r_sweep in range(len(mps) - 1):
+                E, theta = self.solve_local_two_site(
+                    mpo, self.mps_drv.mps, center=center
+                )
+                center, mps = self.mps_drv.split_twosite(theta, "right", center=center)
+                self.mps_drv.mps = mps
+                print([site_tensor.shape for site_tensor in mps])
+            E_rsweep = self.mps_drv.get_expectation_value(mpo)
+            print(f"Energy after right sweep: {E_rsweep}")
+
+            # left-sweep
+            for l_sweep in range(len(mps) - 1):
+                E, theta = self.solve_local_two_site(
+                    mpo, self.mps_drv.mps, center=center - 1
+                )
+                center, mps = self.mps_drv.split_twosite(theta, "left", center=center)
+                self.mps_drv.mps = mps
+                print([site_tensor.shape for site_tensor in mps])
+            E_lsweep = self.mps_drv.get_expectation_value(mpo)
+            print(f"Energy after left sweep : {E_lsweep}")
+
+            if abs(self.E_0 - E_lsweep) < convergence_thr:
+                self.converged = True
+                self.E_0 = E_lsweep
+                print(
+                    f"\n** Converged after {sweep+1} sweeps! **\nGround-state energy = {self.E_0}"
+                )
+                return self.E_0, self.mps_drv.mps
+
+            self.E_0 = E_lsweep

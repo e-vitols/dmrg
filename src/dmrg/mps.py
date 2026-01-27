@@ -76,13 +76,15 @@ class MpsDriver:
 
         return np.sqrt(env.squeeze().real)
 
-    def canonical_norm(self):
+    def canonical_norm(self, mps=None):
         """
         Gets the norm of the MPS assuming it is in canonical form.
 
         :return norm:
             Returns the norm from
         """
+        if mps is None:
+            mps = self.mps
         if self.canonical_center is None:
             raise ValueError("Requires the MPS in canonical form!")
         # return np.einsum(
@@ -90,7 +92,7 @@ class MpsDriver:
         #    self.mps[self.canonical_center],
         #    self.mps[self.canonical_center].conjugate(),
         # ).real
-        A = self.mps[self.canonical_center]
+        A = mps[self.canonical_center]
         return np.sqrt(np.vdot(A, A).real)
 
     @staticmethod
@@ -106,11 +108,17 @@ class MpsDriver:
 
         return env.squeeze()
 
-    def normalize(self):
+    def normalize(self, mps=None, center=None):
         """
         Returns the normalized MPS, assumed being in canonical form.
         """
-        self.mps[self.canonical_center] /= self.canonical_norm()
+        if mps is None:
+            mps = self.mps
+        if center is None:
+            center = self.canonical_center
+
+        mps[center] /= self.canonical_norm()
+        self.mps[center] = mps[center]
 
         return self.mps
 
@@ -316,7 +324,7 @@ class MpsDriver:
         # return two_site_tensor.reshape(l, d1 * d2, r)
         return two_site_tensor.reshape(l, d1, d2, r)
 
-    def split_twosite(self, theta, direction, truncate=False):
+    def split_twosite(self, theta, direction, mps=None, center=None):
         """
         Docstring for split_twosite
 
@@ -328,39 +336,40 @@ class MpsDriver:
             Whether to truncate the SVD to the set self.max_bond_dim. (bool)
         """
         l, d1, d2, r = theta.shape
+        new_canonical_center = center
+        if center is None:
+            new_canonical_center = self.canonical_center
+        if mps is None:
+            mps = self.mps
+
         U, S, Vh = np.linalg.svd(theta.reshape(l * d1, d2 * r), full_matrices=False)
-
         chi_full = S.size
-        chi = chi_full
 
-        schur_complement = 0
-        if truncate:
-            chi = min(self.max_bond_dim, chi_full)
-            # S_full
-            # truncation error/schur complement
-            schur_complement = np.sum(S[chi:])
-            S = S[:chi]
-            U = U[:, :chi]
-            Vh = Vh[:chi]
+        # truncate:
+        chi = min(self.max_bond_dim, chi_full)
+        # truncation error/schur complement
+        schur_complement = np.sum(S[chi:])
+        S = S[:chi]
+        U = U[:, :chi]
+        Vh = Vh[:chi]
 
-        new_canonical_center = self.canonical_center
         if direction == "right":
-            self.mps[self.canonical_center] = U.reshape(l, d1, chi)
-            self.mps[self.canonical_center + 1] = (np.diag(S) @ Vh).reshape(chi, d2, l)
+            mps[center] = U.reshape(l, d1, chi)
+            mps[center + 1] = (np.diag(S) @ Vh).reshape(chi, d2, r)
             # Retain normalization
-            self.mps[self.canonical_center + 1] /= 1 - schur_complement
+            mps[center + 1] /= 1 - schur_complement
             # self.canonical_center += 1
             new_canonical_center += 1
 
         elif direction == "left":
-            self.mps[self.canonical_center] = (U @ np.diag(S)).reshape(l, d1, chi)
+            mps[center - 1] = (U @ np.diag(S)).reshape(l, d1, chi)
             # Retain normalization
-            self.mps[self.canonical_center] /= 1 - schur_complement
-            self.mps[self.canonical_center + 1] = Vh.reshape(chi, d2, l)
+            mps[center - 1] /= 1 - schur_complement
+            mps[center] = Vh.reshape(chi, d2, r)
             # self.canonical_center -= 1
             new_canonical_center -= 1
 
-        return new_canonical_center, self.mps
+        return new_canonical_center, mps
 
     def get_expectation_value(self, mpo, center=None):
         """
