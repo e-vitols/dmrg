@@ -1,0 +1,9 @@
+name: ci
+channels:
+  - veloxchem
+  - conda-forge
+dependencies:
+  - python
+  - pip
+  - veloxchem
+
