@@ -114,26 +114,26 @@ class SweepDriver:
             print(f"Sweep nr. {sweep+1}")
 
             # right-sweep
-            for r_sweep in range(len(mps) - 1):
-                E, theta = self.solve_local_two_site(
-                    mpo, self.mps_drv.mps, center=center
-                )
-                center, mps = self.mps_drv.split_twosite(theta, "right", center=center)
+            for cen in range(len(mps) - 1):
+                E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
+                _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
                 self.mps_drv.mps = mps
-                print([site_tensor.shape for site_tensor in mps])
+                self.mps_drv.canonical_center = cen
+                self.canonical_center = cen
+                # print([site_tensor.shape for site_tensor in mps])
             E_rsweep = self.mps_drv.get_expectation_value(mpo)
             print(f"Energy after right sweep: {E_rsweep}")
 
             # left-sweep
-            for l_sweep in range(len(mps) - 1):
-                E, theta = self.solve_local_two_site(
-                    mpo, self.mps_drv.mps, center=center - 1
-                )
-                center, mps = self.mps_drv.split_twosite(theta, "left", center=center)
+            for cen in range(len(mps) - 2, -1, -1):
+                E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
+                _center, mps = self.mps_drv.split_twosite(theta, "left", center=cen)
                 self.mps_drv.mps = mps
-                print([site_tensor.shape for site_tensor in mps])
+                self.mps_drv.canonical_center = cen
+                self.canonical_center = cen
+                # print([site_tensor.shape for site_tensor in mps])
             E_lsweep = self.mps_drv.get_expectation_value(mpo)
-            print(f"Energy after left sweep : {E_lsweep}")
+            print(f"Energy after left sweep : {E_lsweep}\n")
 
             if abs(self.E_0 - E_lsweep) < convergence_thr:
                 self.converged = True

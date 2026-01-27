@@ -321,8 +321,8 @@ class MpsDriver:
         )
         l, d1, d2, r = two_site_tensor.shape
 
-        # return two_site_tensor.reshape(l, d1 * d2, r)
         return two_site_tensor.reshape(l, d1, d2, r)
+        # return two_site_tensor.reshape(l, d1 * d2, r)
 
     def split_twosite(self, theta, direction, mps=None, center=None):
         """
@@ -348,8 +348,10 @@ class MpsDriver:
         # truncate:
         chi = min(self.max_bond_dim, chi_full)
         # truncation error/schur complement
-        schur_complement = np.sum(S[chi:])
-        S = S[:chi]
+        # schur_complement = np.sum(S[chi:])
+        discarded_weight = np.sum(S[chi:] ** 2)
+        kept_norm = np.sqrt(np.sum(S[:chi] ** 2))
+        S = S[:chi] / kept_norm
         U = U[:, :chi]
         Vh = Vh[:chi]
 
@@ -357,15 +359,15 @@ class MpsDriver:
             mps[center] = U.reshape(l, d1, chi)
             mps[center + 1] = (np.diag(S) @ Vh).reshape(chi, d2, r)
             # Retain normalization
-            mps[center + 1] /= 1 - schur_complement
+            # mps[center + 1] /= 1 - schur_complement
             # self.canonical_center += 1
             new_canonical_center += 1
 
         elif direction == "left":
-            mps[center - 1] = (U @ np.diag(S)).reshape(l, d1, chi)
+            mps[center] = (U @ np.diag(S)).reshape(l, d1, chi)
             # Retain normalization
-            mps[center - 1] /= 1 - schur_complement
-            mps[center] = Vh.reshape(chi, d2, r)
+            # mps[center] /= 1 - schur_complement
+            mps[center + 1] = Vh.reshape(chi, d2, r)
             # self.canonical_center -= 1
             new_canonical_center -= 1
 

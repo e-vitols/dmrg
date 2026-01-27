@@ -336,15 +336,16 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         mpo = []
 
         # Left-most matrix (row-vector)
-        W_0 = np.array([n, identity])[np.newaxis]
+        W_0 = np.array([identity, n])[np.newaxis]
         mpo.append(W_0)
 
         W_i = np.array([[identity, n], [zero, identity]])
         for i in range(1, L - 1):
-            mpo.append(W_i)
+            mpo.append(W_i.copy())
 
         # Right-most matrix (column-vector)
-        W_L = np.swapaxes(W_0, 0, 1)
+        # W_L = np.array([identity, n])[:,np.newaxis]
+        W_L = np.array([n, identity])[:, np.newaxis]
         mpo.append(W_L)
 
         return mpo
@@ -357,7 +358,6 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         d = self.local_dim
 
         identity = np.eye(d)
-        zero = np.zeros((d, d))
 
         mpo = []
 
@@ -370,7 +370,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
             mpo.append(W_i[np.newaxis])
 
         # Right-most matrix (column-vector)
-        W_L = W_0
+        W_L = W_0.copy()
         mpo.append(W_L[np.newaxis])
 
         return mpo
