@@ -493,6 +493,62 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
                                 n += 1
         return W_full
 
+    def electronic_hamiltonian(self, t_ij, v_ijkl):
+        """
+        Constructs the full electronic Hamiltonian as an MPO.
+
+        :param h_ij:
+            The one-electron integrals in MO-basis.
+        :param v_ijkl:
+            The two-electron integrals in MO-basis.
+        """
+        nr_sites = self.nr_sites
+        nr_particles = self.nr_particles
+        local_dim = self.local_dim
+        nr_terms = 4 * nr_sites**4
+
+        W_full = [[] for _ in range(nr_sites)]
+        W_full[0] = np.zeros((1, nr_terms, local_dim, local_dim))
+        for l in range(1, nr_sites - 1):
+            W_full[l] = np.zeros((nr_terms, nr_terms, local_dim, local_dim))
+        W_full[-1] = np.zeros((nr_terms, 1, local_dim, local_dim))
+
+        n = 0
+        for i in range(nr_sites):
+            for j in range(nr_sites):
+                for k in range(nr_sites):
+                    for l in range(nr_sites):
+                        for spin in ["up", "down"]:
+                            for spin_p in ["up", "down"]:
+                                creat_op, annih_op = (i, spin), (j, spin)
+                                creat_op_p, annih_op_p = (k, spin_p), (l, spin_p)
+
+                                one_elec_coeff = 0
+                                if j == l:
+                                    one_elec_coeff += t_ij[i, k]
+                                if i == k:
+                                    one_elec_coeff += t_ij[j, l]
+                                one_elec_coeff /= nr_particles - 1
+
+                                operator = self._construct_foursite_operator(
+                                    creat_op, creat_op_p, annih_op_p, annih_op
+                                )
+                                two_elec_coeff = v_ijkl[i, j, k, l]
+
+                                # Include coefficient by scaling only the first MPO-tensor
+                                operator[0] *= 0.5 * (one_elec_coeff + two_elec_coeff)
+
+                                W_full[0][0, n] = operator[0]
+                                for l_index in range(1, nr_sites - 1):
+                                    W_full[l_index][n, n] = operator[l_index]
+                                W_full[-1][n, 0] = operator[-1]
+
+                                n += 1
+
+        self.mpo_bond_dim = n
+
+        return W_full
+
     def old_apply_effective_matvec(self, mpo, mps=None, center=None, two_site=True):
         """
         Docstring for get_effective_op

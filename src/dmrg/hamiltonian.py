@@ -1,5 +1,5 @@
-# import veloxchem as vlx
 import numpy as np
+import veloxchem as vlx
 
 
 class HamiltonianDriver:
@@ -37,13 +37,13 @@ class HamiltonianDriver:
         :param basis:
             The associated basis-object as defined in VeloxChem.
         """
-        S, h, g, V_nuc = self.ham.get_ints(molecule, basis)
+        S, h, g, V_nuc = self.get_ints(molecule, basis)
         self.one_elec_ints_ao = h
         self.two_elec_ints_ao = g
         self.nuc_repulsion_energy = V_nuc
         self.overlap = S
 
-    def transform_integrals(self, scf_results):
+    def get_transformed_integrals(self, molecule, basis, scf_results):
         """
         Transform the AO-basis integrals to MO-basis.
 
@@ -53,6 +53,8 @@ class HamiltonianDriver:
         :return:
             Returns the transformed one- and two-electron integrals in MO-basis.
         """
+        # if integrals is None:
+        self.update_integrals(molecule, basis)
 
         C_alpha = scf_results["C_alpha"]
         h_ij = np.einsum(

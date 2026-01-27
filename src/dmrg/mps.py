@@ -66,6 +66,45 @@ class MpsDriver:
 
         self.mps = mps
 
+    def _initialize_fixed_mps(self):
+        """
+        Initializes the MatrixProductState object with random coefficients.
+
+        :return mps:
+            Returns a matrix-product state (MPS) with random coefficients.
+        """
+        L = self.nr_sites
+        d = self.local_dim
+        m = self.max_bond_dim
+
+        mps = []
+
+        def chi(i):
+            return max(1, min(m, d ** (i + 1), d ** (L - (i + 1))))
+
+        # Left-most matrix (row-vector)
+        m_l = 1
+        # m_r = max(1, min(m, d))
+        m_r = chi(0)
+        A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=np.complex128)
+        mps.append(A)
+
+        # The middle sites (matrices) are built iteratively, taking the shape of the previous sites right dimension for the new left
+        for i in range(1, L - 1):
+            m_l = mps[-1].shape[2]
+            # m_r = max(1, min(m, d))
+            m_r = chi(i)
+            A = A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=np.complex128)
+            mps.append(A)
+
+        # Right-most matrix (column-vector)
+        m_l = mps[-1].shape[2]
+        m_r = 1
+        A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=np.complex128)
+        mps.append(A)
+
+        self.mps = mps
+
     def full_norm(self):
         """
         Gets the norm of the MPS.
