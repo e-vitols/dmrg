@@ -1,8 +1,8 @@
-# Prepared with help from perplexity.ai
 name: CI
 
 on:
-  push:        # run on every push to any branch
+  push:
+  pull_request:
 
 jobs:
   test:
@@ -14,14 +14,23 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    defaults:
+      run:
+        shell: bash -el {0}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Set up Miniconda + create CI env
+        uses: conda-incubator/setup-miniconda@v3
         with:
+          miniconda-version: "latest"
+          auto-update-conda: true
+          activate-environment: ci
+          environment-file: environment-ci.yml
           python-version: ${{ matrix.python-version }}
+          channel-priority: strict
 
       - name: Install build and test dependencies
         run: |
@@ -32,7 +41,6 @@ jobs:
         run: python -m build
 
       - name: Install package (prefer wheel)
-        shell: bash
         run: |
           if compgen -G "dist/*.whl" > /dev/null; then
             python -m pip install dist/*.whl
