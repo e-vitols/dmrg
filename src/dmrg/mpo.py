@@ -350,7 +350,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
 
         return mpo
 
-    def hubbard_ham(self, U=1):
+    def hubbard_ham(self, U=1, chem_pot=0):
         """
         Implements the Hubbard Hamiltonian.
         """
@@ -365,7 +365,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         a_down_dagger = self.local_c("down", True, JW=False)
         a_down = self.local_c("down", False, JW=False)
         n_down = a_down_dagger @ a_down
-        n = U * (n_up @ n_down)
+        n = U * (n_up @ n_down) - chem_pot * (n_up + n_down)
 
         identity = np.eye(d)
         zero = np.zeros((d, d))
@@ -388,7 +388,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
 
     def chem_pot_op(self, coupling=1):
         """
-        Implements the Hubbard Hamiltonian.
+        Implements the chemical potential operator.
         """
         L = self.nr_sites
         d = self.local_dim
