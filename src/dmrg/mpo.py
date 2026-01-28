@@ -350,6 +350,78 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
 
         return mpo
 
+    def hubbard_ham(self, U=1):
+        """
+        Implements the Hubbard Hamiltonian.
+        """
+        L = self.nr_sites
+        d = self.local_dim
+
+        # if spin == "up":
+        a_up_dagger = self.local_c("up", True, JW=False)
+        a_up = self.local_c("up", False, JW=False)
+        n_up = a_up_dagger @ a_up
+        # elif spin == "down":
+        a_down_dagger = self.local_c("down", True, JW=False)
+        a_down = self.local_c("down", False, JW=False)
+        n_down = a_down_dagger @ a_down
+        n = U * (n_up @ n_down)
+
+        identity = np.eye(d)
+        zero = np.zeros((d, d))
+
+        mpo = []
+
+        # Left-most matrix (row-vector)
+        W_0 = np.array([identity, n])[np.newaxis]
+        mpo.append(W_0)
+
+        W_i = np.array([[identity, n], [zero, identity]])
+        for i in range(1, L - 1):
+            mpo.append(W_i.copy())
+
+        # Right-most matrix (column-vector)
+        W_L = np.array([n, identity])[:, np.newaxis]
+        mpo.append(W_L)
+
+        return mpo
+
+    def chem_pot_op(self, coupling=1):
+        """
+        Implements the Hubbard Hamiltonian.
+        """
+        L = self.nr_sites
+        d = self.local_dim
+
+        # if spin == "up":
+        a_up_dagger = self.local_c("up", True, JW=False)
+        a_up = self.local_c("up", False, JW=False)
+        n_up = a_up_dagger @ a_up
+        # elif spin == "down":
+        a_down_dagger = self.local_c("down", True, JW=False)
+        a_down = self.local_c("down", False, JW=False)
+        n_down = a_down_dagger @ a_down
+        n = coupling * (n_up + n_down)
+
+        identity = np.eye(d)
+        zero = np.zeros((d, d))
+
+        mpo = []
+
+        # Left-most matrix (row-vector)
+        W_0 = np.array([identity, n])[np.newaxis]
+        mpo.append(W_0)
+
+        W_i = np.array([[identity, n], [zero, identity]])
+        for i in range(1, L - 1):
+            mpo.append(W_i.copy())
+
+        # Right-most matrix (column-vector)
+        W_L = np.array([n, identity])[:, np.newaxis]
+        mpo.append(W_L)
+
+        return mpo
+
     def id_op(self):
         """
         Implements the identity operator, mainly for debugging purposes.
@@ -536,9 +608,10 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
                                 two_elec_coeff = v_ijkl[i, j, k, l]
 
                                 # Include coefficient by scaling only the first MPO-tensor
-                                operator[0] *= 0.5 * (one_elec_coeff + two_elec_coeff)
+                                # operator[0] *= 0.5 * (one_elec_coeff + two_elec_coeff)
+                                coeff = 0.5 * (one_elec_coeff + two_elec_coeff)
 
-                                W_full[0][0, n] = operator[0]
+                                W_full[0][0, n] = coeff * operator[0]
                                 for l_index in range(1, nr_sites - 1):
                                     W_full[l_index][n, n] = operator[l_index]
                                 W_full[-1][n, 0] = operator[-1]
@@ -633,3 +706,45 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         )
 
         return matvec
+
+    @staticmethod
+    def add_mpos(mpo1, mpo2):
+        """
+        Sum two MPOs given as lists of tensors W[i] with shape (l, r, d, d).
+        Returns an MPO for (A + B).
+        """
+        if len(mpo1) != len(mpo2):
+            raise ValueError("MPOs are of different lengths")
+        L = len(mpo1)
+        out = []
+
+        for i in range(L):
+            WA, WB = mpo1[i], mpo2[i]
+            l1, r1, d1, d2 = WA.shape
+            l2, r2, d1, d2 = WB.shape
+
+            dtype = np.result_type(WA.dtype, WB.dtype)
+
+            if i == 0:
+                # (1, r1+r2, d, d)
+                assert l1 == l2 == 1
+                W = np.concatenate(
+                    [WA.astype(dtype, copy=False), WB.astype(dtype, copy=False)], axis=1
+                )
+
+            elif i == L - 1:
+                # (l1+l2, 1, d, d)
+                assert r1 == r2 == 1
+                W = np.concatenate(
+                    [WA.astype(dtype, copy=False), WB.astype(dtype, copy=False)], axis=0
+                )
+
+            else:
+                # block-diagonal: (l1+l2, r1+r2, d, d)
+                W = np.zeros((l1 + l2, r1 + r2, d1, d2), dtype=dtype)
+                W[:l1, :r1, :, :] = WA
+                W[l1:, r1:, :, :] = WB
+
+            out.append(W)
+
+        return out
