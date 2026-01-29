@@ -10,7 +10,7 @@ import dmrg
 
 
 class TestElectronicHamiltonian:
-    def test_num_and_basic_ops(self, local_dim=4, m_bonddim=2, nr_sites=2):
+    def test_h2(self, local_dim=4, m_bonddim=2, nr_sites=2):
         canonical_center = 0
 
         mps_drv = dmrg.MpsDriver()

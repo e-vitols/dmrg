@@ -509,7 +509,7 @@ class MpoDriver(MpsDriver):
         W2 = tmp.reshape(l, r, d**2, d**2)
         return W2
 
-    def electronic_hamiltonian(self, t_ij, v_ijkl):
+    def old_naive_electronic_hamiltonian(self, t_ij, v_ijkl):
         """
         Constructs the full electronic Hamiltonian as an MPO.
 
@@ -555,12 +555,73 @@ class MpoDriver(MpsDriver):
                                 creat_op, annih_op = (i, spin), (j, spin)
                                 creat_op_p, annih_op_p = (k, spin_p), (l, spin_p)
 
-                                one_elec_coeff = 0
-                                # if j == l:
-                                #    one_elec_coeff += t_ij[i, k]
-                                # if i == k:
-                                #    one_elec_coeff += t_ij[j, l]
-                                # one_elec_coeff /= nr_particles - 1
+                                operator = self._construct_foursite_operator(
+                                    creat_op, creat_op_p, annih_op_p, annih_op
+                                )
+                                two_elec_coeff = v_ijkl[i, j, k, l]
+
+                                # Include coefficient by scaling only the first MPO-tensor
+                                coeff = 0.5 * two_elec_coeff
+                                # operator[0] *= 0.5 * (one_elec_coeff + two_elec_coeff)
+
+                                W_full[0][0, n] = coeff * operator[0]
+                                for l_index in range(1, nr_sites - 1):
+                                    W_full[l_index][n, n] = operator[l_index]
+                                W_full[-1][n, 0] = operator[-1]
+
+                                n += 1
+
+        self.mpo_bond_dim = n
+
+        return W_full
+
+    def electronic_hamiltonian(self, t_ij, v_ijkl):
+        """
+        Constructs the full electronic Hamiltonian as an MPO.
+
+        :param h_ij:
+            The one-electron integrals in MO-basis.
+        :param v_ijkl:
+            The two-electron integrals in MO-basis.
+        """
+        nr_sites = self.nr_sites
+        local_dim = self.local_dim
+        # NOTE nr_terms of 2-electron terms halved
+        nr_terms = 2 * nr_sites**4 + 3 * nr_sites**2
+
+        W_full = [[] for _ in range(nr_sites)]
+        W_full[0] = np.zeros((1, nr_terms, local_dim, local_dim))
+        for l in range(1, nr_sites - 1):
+            W_full[l] = np.zeros((nr_terms, nr_terms, local_dim, local_dim))
+        W_full[-1] = np.zeros((nr_terms, 1, local_dim, local_dim))
+
+        n = 0
+        for i in range(nr_sites):
+            for j in range(nr_sites):
+                for spin in ["up", "down"]:
+                    creat_op, annih_op = (i, spin), (j, spin)
+                    one_elec_coeff = t_ij[i, j]
+
+                    operator = self._construct_twosite_operator(creat_op, annih_op)
+
+                    # Include coefficient by scaling only the first MPO-tensor
+                    W_full[0][0, n] = one_elec_coeff * operator[0]
+                    for l_index in range(1, nr_sites - 1):
+                        W_full[l_index][n, n] = operator[l_index]
+                    W_full[-1][n, 0] = operator[-1]
+
+                    n += 1
+
+        for i in range(nr_sites):
+            for j in range(nr_sites):
+                for k in range(nr_sites):
+                    for l in range(nr_sites):
+                        for spin in ["up", "down"]:
+                            for spin_p in ["up", "down"]:
+                                if (k, l, spin_p) < (i, j, spin):
+                                    continue
+                                creat_op, annih_op = (i, spin), (j, spin)
+                                creat_op_p, annih_op_p = (k, spin_p), (l, spin_p)
 
                                 operator = self._construct_foursite_operator(
                                     creat_op, creat_op_p, annih_op_p, annih_op
@@ -568,8 +629,8 @@ class MpoDriver(MpsDriver):
                                 two_elec_coeff = v_ijkl[i, j, k, l]
 
                                 # Include coefficient by scaling only the first MPO-tensor
-                                # operator[0] *= 0.5 * (one_elec_coeff + two_elec_coeff)
-                                coeff = 0.5 * (one_elec_coeff + two_elec_coeff)
+                                # coeff = 0.5 * two_elec_coeff
+                                coeff = two_elec_coeff
 
                                 W_full[0][0, n] = coeff * operator[0]
                                 for l_index in range(1, nr_sites - 1):
@@ -792,7 +853,7 @@ class MpoDriver(MpsDriver):
     def hubbard_mpo_from_dressed_strings(self, t=1.0, U=0.0, mu=0.0):
         L = self.nr_sites
         d = self.local_dim
-        I = np.eye(d, dtype=np.complex128)
+        I = np.eye(d)
 
         # local onsite ops
         cd_up = self.local_c("up", True)  # ,  JW=False)
@@ -924,3 +985,29 @@ class MpoDriver(MpsDriver):
         W[-1] = WL
 
         return W
+
+    def site_occ_op(self, site):
+        """
+        Get the site occupation number operator.
+        """
+        cd_up = self.local_c("up", True)
+        c_up = self.local_c("up", False)
+        n_up = cd_up @ c_up
+        cd_down = self.local_c("down", True)
+        c_down = self.local_c("down", False)
+        n_down = cd_down @ c_down
+
+        occ_site_down = self.id_op()
+        occ_site_up = self.id_op()
+
+        occ_site_down[site][:, :] = n_down
+        occ_site_up[site][:, :] = n_up
+
+        return self.add_mpos(occ_site_up, occ_site_down)
+
+    @staticmethod
+    def permute_integrals(t_ij, v_ijkl, perm):
+        perm = np.asarray(perm, dtype=int)
+        t_p = t_ij[np.ix_(perm, perm)]
+        v_p = v_ijkl[np.ix_(perm, perm, perm, perm)]
+        return t_p, v_p

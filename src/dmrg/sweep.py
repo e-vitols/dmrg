@@ -123,7 +123,7 @@ class SweepDriver:
                 # print([site_tensor.shape for site_tensor in mps])
             E_rsweep = self.mps_drv.get_expectation_value(mpo)
             print(
-                f"Energy after right sweep: {E_rsweep}\nDiscarded weight: {self.mps_drv.discarded_weight}"
+                f"Energy after right sweep: {E_rsweep:.6f}\nDiscarded weight: {self.mps_drv.discarded_weight:.3e}"
             )
 
             # left-sweep
@@ -136,14 +136,14 @@ class SweepDriver:
                 # print([site_tensor.shape for site_tensor in mps])
             E_lsweep = self.mps_drv.get_expectation_value(mpo)
             print(
-                f"Energy after left sweep : {E_lsweep}\nDiscarded weight: {self.mps_drv.discarded_weight}\n"
+                f"Energy after left sweep : {E_lsweep:.6f}\nDiscarded weight: {self.mps_drv.discarded_weight:.3e}\n"
             )
 
             if abs(self.E_0 - E_lsweep) < convergence_thr:
                 self.converged = True
                 self.E_0 = E_lsweep
                 print(
-                    f"\n** Converged after {sweep+1} sweeps! **\nGround-state energy = {self.E_0}\n"
+                    f"\n** Converged after {sweep+1} sweeps! **\nGround-state energy = {self.E_0:.6f}\n"
                 )
                 return self.E_0, self.mps_drv.mps
 
