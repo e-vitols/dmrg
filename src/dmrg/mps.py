@@ -26,6 +26,7 @@ class MpsDriver:
         self.mps = None
         self.canonical_center = None
         self.schmidt_spectrum = None
+        self.discarded_weight = None
 
     def _initialize_random_mps(self):
         """
@@ -388,7 +389,7 @@ class MpsDriver:
         chi = min(self.max_bond_dim, chi_full)
         # truncation error/schur complement
         # schur_complement = np.sum(S[chi:])
-        discarded_weight = np.sum(S[chi:] ** 2)
+        self.discarded_weight = np.sum(S[chi:] ** 2)
         kept_norm = np.sqrt(np.sum(S[:chi] ** 2))
         S = S[:chi] / kept_norm
         U = U[:, :chi]

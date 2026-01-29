@@ -8,7 +8,8 @@ from .mps import MpsDriver
 # import veloxchem as vlx
 
 
-class MpoDriver(MpsDriver, HamiltonianDriver):
+# class MpoDriver(MpsDriver, HamiltonianDriver):
+class MpoDriver(MpsDriver):
     """
     Implements the MatrixProductOperator by importing the orbitals and -- specific, for each operator -- integrals from VeloxChem.
     """
@@ -71,6 +72,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         h_ij = np.einsum(
             "uv, ui, vj -> ij", self.one_elec_ints_ao, C_alpha, C_alpha, optimize=True
         )
+
         g_ijkl = np.einsum(
             "uvws, ui, vj, wk, sl -> ijkl",
             self.two_elec_ints_ao,
@@ -136,12 +138,6 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
             operator_str.append(operator)
         return operator_str
 
-    def mpo_converted_JW(self, jw_string):
-        mpo = []
-        for core in jw_string:
-            mpo.append(core[np.newaxis, :, :, np.newaxis])
-        return mpo
-
     def local_c(self, spin: str, dagger: bool, JW=True, local_dim=4):
         """
         Local fermionic creation/annihilation operator in the basis
@@ -166,8 +162,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
             mat[2, 0] = 1.0
             mat[3, 1] = 1.0
             # Impose antisymmetry for same site-spins
-            if JW:
-                mat = mat @ jw_mat
+            mat = mat @ jw_mat
         else:
             raise ValueError(f"Unknown spin: {spin!r}")
 
@@ -191,6 +186,12 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
             raise ValueError("Only implemented for local dimension 4")
 
         return np.diag((1.0, -1.0, -1.0, 1.0))
+
+    def mpo_converted_JW(self, jw_string):
+        mpo = []
+        for core in jw_string:
+            mpo.append(core[np.newaxis, :, :, np.newaxis])
+        return mpo
 
     @staticmethod
     def apply_local_mpo(mpo, mps):
@@ -508,7 +509,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         W2 = tmp.reshape(l, r, d**2, d**2)
         return W2
 
-    def qc_hamiltonian(self, t_ij, v_ijkl):
+    def electronic_hamiltonian(self, t_ij, v_ijkl):
         """
         Constructs the full electronic Hamiltonian as an MPO.
 
@@ -520,7 +521,7 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         nr_sites = self.nr_sites
         nr_particles = self.nr_particles
         local_dim = self.local_dim
-        nr_terms = 4 * nr_sites**4
+        nr_terms = 4 * nr_sites**4 + 2 * nr_sites**2
 
         W_full = [[] for _ in range(nr_sites)]
         W_full[0] = np.zeros((1, nr_terms, local_dim, local_dim))
@@ -531,6 +532,22 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
         n = 0
         for i in range(nr_sites):
             for j in range(nr_sites):
+                for spin in ["up", "down"]:
+                    creat_op, annih_op = (i, spin), (j, spin)
+                    one_elec_coeff = t_ij[i, j]
+
+                    operator = self._construct_twosite_operator(creat_op, annih_op)
+
+                    # Include coefficient by scaling only the first MPO-tensor
+                    W_full[0][0, n] = one_elec_coeff * operator[0]
+                    for l_index in range(1, nr_sites - 1):
+                        W_full[l_index][n, n] = operator[l_index]
+                    W_full[-1][n, 0] = operator[-1]
+
+                    n += 1
+
+        for i in range(nr_sites):
+            for j in range(nr_sites):
                 for k in range(nr_sites):
                     for l in range(nr_sites):
                         for spin in ["up", "down"]:
@@ -539,33 +556,33 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
                                 creat_op_p, annih_op_p = (k, spin_p), (l, spin_p)
 
                                 one_elec_coeff = 0
-                                if j == l:
-                                    # one_elec_coeff_ik = 1
-                                    # one_elec_coeff += t_ij[i,k]
-                                    one_elec_coeff += 1
-                                elif i == k:
-                                    # one_elec_coeff_jl = 1
-                                    # one_elec_coeff += t_ij[j,l]
-                                    one_elec_coeff += 1
-                                one_elec_coeff /= nr_particles - 1
+                                # if j == l:
+                                #    one_elec_coeff += t_ij[i, k]
+                                # if i == k:
+                                #    one_elec_coeff += t_ij[j, l]
+                                # one_elec_coeff /= nr_particles - 1
 
                                 operator = self._construct_foursite_operator(
                                     creat_op, creat_op_p, annih_op_p, annih_op
                                 )
-                                two_elec_coeff = 1.0
+                                two_elec_coeff = v_ijkl[i, j, k, l]
 
                                 # Include coefficient by scaling only the first MPO-tensor
-                                operator[0] *= 0.5 * (one_elec_coeff + two_elec_coeff)
+                                # operator[0] *= 0.5 * (one_elec_coeff + two_elec_coeff)
+                                coeff = 0.5 * (one_elec_coeff + two_elec_coeff)
 
-                                W_full[0][0, n] = operator[0]
+                                W_full[0][0, n] = coeff * operator[0]
                                 for l_index in range(1, nr_sites - 1):
                                     W_full[l_index][n, n] = operator[l_index]
                                 W_full[-1][n, 0] = operator[-1]
 
                                 n += 1
+
+        self.mpo_bond_dim = n
+
         return W_full
 
-    def electronic_hamiltonian(self, t_ij, v_ijkl):
+    def _electronic_hamiltonian(self, t_ij, v_ijkl):
         """
         Constructs the full electronic Hamiltonian as an MPO.
 
@@ -748,3 +765,162 @@ class MpoDriver(MpsDriver, HamiltonianDriver):
             out.append(W)
 
         return out
+
+    @staticmethod
+    def mpo_from_opstrings(opstrings, coeffs):
+        """
+        opstrings: list of length
+        Returns MPO list W[i] with shapes (l,r,d,d).
+        """
+        T = len(opstrings)
+        L = len(opstrings[0])
+        d = opstrings[0][0].shape[0]
+
+        W = [None] * L
+        W[0] = np.zeros((1, T, d, d))
+        for i in range(1, L - 1):
+            W[i] = np.zeros((T, T, d, d))
+        W[-1] = np.zeros((T, 1, d, d))
+
+        for t, (ops, c) in enumerate(zip(opstrings, coeffs)):
+            W[0][0, t] = c * ops[0]
+            for i in range(1, L - 1):
+                W[i][t, t] = ops[i]
+            W[-1][t, 0] = ops[-1]
+        return W
+
+    def hubbard_mpo_from_dressed_strings(self, t=1.0, U=0.0, mu=0.0):
+        L = self.nr_sites
+        d = self.local_dim
+        I = np.eye(d, dtype=np.complex128)
+
+        # local onsite ops
+        cd_up = self.local_c("up", True)  # ,  JW=False)
+        c_up = self.local_c("up", False)  # , JW=False)
+        cd_dn = self.local_c("down", True)  # ,  JW=False)
+        c_dn = self.local_c("down", False)  # , JW=False)
+
+        n_up = cd_up @ c_up
+        n_dn = cd_dn @ c_dn
+        n = n_up + n_dn
+        n_dbl = n_up @ n_dn
+
+        opstrings = []
+        coeffs = []
+
+        # onsite: U * sum_i n_up n_dn  - mu * sum_i n
+        if U != 0.0:
+            for i in range(L):
+                ops = [I] * L
+                ops[i] = n_dbl
+                opstrings.append(ops)
+                coeffs.append(U)
+
+        # chemical potential
+        if mu != 0.0:
+            for i in range(L):
+                ops = [I] * L
+                ops[i] = n
+                opstrings.append(ops)
+                coeffs.append(-mu)
+
+        # hopping: -t * sum_{<i,i+1>,σ} (cd_i c_{i+1} + cd_{i+1} c_i)
+        if t != 0.0:
+            for i in range(L - 1):
+                for spin in ["up", "down"]:
+                    opstrings.append(
+                        self._construct_twosite_operator((i, spin), (i + 1, spin))
+                    )
+                    coeffs.append(-t)
+                    opstrings.append(
+                        self._construct_twosite_operator((i + 1, spin), (i, spin))
+                    )
+                    coeffs.append(-t)
+
+        return self.mpo_from_opstrings(opstrings, coeffs)
+
+    def hubbard_ham(self, t=1.0, U=0.0, mu=0.0):
+        """
+        Implements the full Hubbard Hamiltonian, including chemical potential.
+        """
+        L = self.nr_sites
+        d = self.local_dim
+
+        I = np.eye(d, dtype=np.complex128)
+        Z = np.zeros((d, d), dtype=np.complex128)
+
+        # c_up  = self.local_c("up",   dagger=False, JW=False)
+        # cd_up = self.local_c("up",   dagger=True,  JW=False)
+        # c_dn  = self.local_c("down", dagger=False, JW=False)
+        # cd_dn = self.local_c("down", dagger=True,  JW=False)
+        c_up = self.local_c("up", dagger=False, JW=True)
+        cd_up = self.local_c("up", dagger=True, JW=True)
+        c_dn = self.local_c("down", dagger=False, JW=True)
+        cd_dn = self.local_c("down", dagger=True, JW=True)
+
+        n_up = cd_up @ c_up
+        n_dn = cd_dn @ c_dn
+        n = n_up + n_dn
+        n_dbl = n_up @ n_dn
+
+        P = I - 2.0 * n + 4.0 * n_dbl
+
+        # Onsite term
+        h_loc = (U * n_dbl) - (mu * n)
+
+        # MPO-bond dimension
+        D = 6
+
+        W = [None] * L
+
+        # first site: (1,D,d,d)
+        W0 = np.zeros((1, D, d, d), dtype=np.complex128)
+        W0[0, 0] = I
+        W0[0, 1] = cd_up @ P
+        W0[0, 2] = P @ c_up
+        W0[0, 3] = cd_dn @ P
+        W0[0, 4] = P @ c_dn
+        W0[0, 5] = h_loc
+        W[0] = W0
+
+        # middle sites: (D,D,d,d)
+        for i in range(1, L - 1):
+            Wi = np.zeros((D, D, d, d), dtype=np.complex128)
+            Wi[0, 0] = I
+
+            # start hopping on this site
+            Wi[0, 1] = cd_up @ P
+            Wi[0, 2] = P @ c_up
+            Wi[0, 3] = cd_dn @ P
+            Wi[0, 4] = P @ c_dn
+
+            # local onsite term
+            Wi[0, 5] = h_loc
+
+            # close hopping started on previous site
+            Wi[1, 5] = -t * c_up
+            Wi[2, 5] = -t * cd_up
+            Wi[3, 5] = -t * c_dn
+            Wi[4, 5] = -t * cd_dn
+
+            # propagate end
+            Wi[5, 5] = I
+
+            W[i] = Wi
+
+        WL = np.zeros((D, 1, d, d), dtype=np.complex128)
+
+        WL[0, 0] = h_loc
+
+        # close hopping started on site L-2
+        WL[1, 0] = -t * c_up
+        WL[2, 0] = -t * cd_up
+        WL[3, 0] = -t * c_dn
+        WL[4, 0] = -t * cd_dn
+
+        # end fianl contributions
+        WL[5, 0] = I
+
+        W[-1] = WL
+
+        return W

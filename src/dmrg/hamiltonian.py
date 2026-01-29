@@ -70,4 +70,4 @@ class HamiltonianDriver:
             optimize=True,
         )
 
-        return h_ij, g_ijkl.swapaxes(1, 2)
+        return h_ij, g_ijkl  # .swapaxes(1, 2)

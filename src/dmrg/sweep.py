@@ -122,7 +122,9 @@ class SweepDriver:
                 self.canonical_center = cen
                 # print([site_tensor.shape for site_tensor in mps])
             E_rsweep = self.mps_drv.get_expectation_value(mpo)
-            print(f"Energy after right sweep: {E_rsweep}")
+            print(
+                f"Energy after right sweep: {E_rsweep}\nDiscarded weight: {self.mps_drv.discarded_weight}"
+            )
 
             # left-sweep
             for cen in range(len(mps) - 2, -1, -1):
@@ -133,14 +135,18 @@ class SweepDriver:
                 self.canonical_center = cen
                 # print([site_tensor.shape for site_tensor in mps])
             E_lsweep = self.mps_drv.get_expectation_value(mpo)
-            print(f"Energy after left sweep : {E_lsweep}\n")
+            print(
+                f"Energy after left sweep : {E_lsweep}\nDiscarded weight: {self.mps_drv.discarded_weight}\n"
+            )
 
             if abs(self.E_0 - E_lsweep) < convergence_thr:
                 self.converged = True
                 self.E_0 = E_lsweep
                 print(
-                    f"\n** Converged after {sweep+1} sweeps! **\nGround-state energy = {self.E_0}"
+                    f"\n** Converged after {sweep+1} sweeps! **\nGround-state energy = {self.E_0}\n"
                 )
                 return self.E_0, self.mps_drv.mps
 
             self.E_0 = E_lsweep
+            # TODO: add nuclear energy
+            # self.total_energy = self.E_0 + self.V_nuc
