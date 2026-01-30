@@ -14,15 +14,21 @@ class MpsDriver:
                      4 allowed occupations of the site: 0, alpha, beta, or alpha+beta.
     """
 
-    def __init__(self):
+    def __init__(self, settings):
         """
         Initializes the MatrixProductState object.
         """
         # Settings specifying the
-        self.nr_sites = None
-        self.max_bond_dim = None
-        self.tolerance = 1e-9
-        self.local_dim = None
+        self.settings = settings
+
+        # self.nr_sites = None
+        self.nr_sites = settings.nr_sites
+        # self.max_bond_dim = None
+        self.max_bond_dim = settings.max_bond_dim
+        # self.tolerance = 1e-9
+        self.tolerance = settings.svd_thr
+        # self.local_dim = None
+        self.local_dim = settings.local_dim
 
         self.mps = None
         self.canonical_center = None
@@ -175,7 +181,7 @@ class MpsDriver:
         if center is None and self.canonical_center is not None:
             center = self.canonical_center
 
-        allowed_center = 0 <= center <= self.nr_sites
+        allowed_center = 0 <= center <= self.nr_sites - 1
         if allowed_center is not True:
             raise ValueError(
                 "The site to center on must be within the number of sites!"

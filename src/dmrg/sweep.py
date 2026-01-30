@@ -12,18 +12,26 @@ from .mps import MpsDriver
 
 class SweepDriver:
     # def __init__(self):
-    def __init__(self, *, mps_drv=None, mpo_drv=None, **kwargs):
+    def __init__(self, settings, mps_drv=None, mpo_drv=None):
         if mps_drv is not None:
             self.mps_drv = mps_drv
         else:
-            MpsDriver(**kwargs)
+            self.mps_drv = MpsDriver()
 
         if mpo_drv is not None:
             self.mpo_drv = mpo_drv
         else:
-            MpoDriver(**kwargs)
+            self.mpo_drv = MpoDriver()
 
-        self.nr_sweeps = 50
+        self.settings = settings
+        # self.nr_sweeps = 50
+        self.nr_sweeps = settings.nr_sweeps
+        self.nr_sites = settings.nr_sites
+        self.max_bond_dim = settings.max_bond_dim
+        self.tolerance = settings.svd_thr
+        self.local_dim = settings.local_dim
+        self.allow_bond_growth = settings.allow_bond_growth
+        self.bond_growth_step = settings.bond_growth_step
 
     def __getattr__(self, name):
         # try mps first, then mpo

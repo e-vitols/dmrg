@@ -2,20 +2,17 @@ import numpy as np
 import pytest
 
 import dmrg
-from dmrg.mpo import MpoDriver
-from dmrg.mps import MpsDriver
 
 
 class TestCanonicalize:
     def test_left_canonicalize(self, local_dim=4, m_bonddim=8, nr_sites=6):
-        mps_drv = MpsDriver()
-        mps_drv.local_dim = local_dim
-        mps_drv.max_bond_dim = m_bonddim
-        mps_drv.nr_sites = nr_sites
-        mps_drv._initialize_random_mps()
-        mps = mps_drv.mps
-        mps_drv.canonical_form(5)
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
+        )
+        mps_drv = dmrg.MpsDriver(settings)
 
+        mps_drv._initialize_random_mps()
+        mps_drv.canonical_form(5)
         orthonorm = np.einsum(
             "ldr, ldR -> rR", mps_drv.mps[0], mps_drv.mps[0].conjugate()
         )
@@ -24,12 +21,12 @@ class TestCanonicalize:
 
     def test_canonicalize(self, local_dim=4, m_bonddim=8, nr_sites=6):
         # tt = mps.MatrixProductState()
-        mps_drv = MpsDriver()
-        mps_drv.local_dim = local_dim
-        mps_drv.max_bond_dim = m_bonddim
-        mps_drv.nr_sites = nr_sites
-        mps_drv._initialize_random_mps()
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
+        )
+        mps_drv = dmrg.MpsDriver(settings)
 
+        mps_drv._initialize_random_mps()
         norm_before = mps_drv.full_norm()
 
         for center in range(nr_sites):
@@ -58,10 +55,11 @@ class TestCanonicalize:
                 assert np.max(np.abs(right_metric - np.eye(m_l))) < 1e-10
 
     def test_normalized_canonicalize(self, local_dim=4, m_bonddim=8, nr_sites=6):
-        mps_drv = MpsDriver()
-        mps_drv.local_dim = local_dim
-        mps_drv.max_bond_dim = m_bonddim
-        mps_drv.nr_sites = nr_sites
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
+        )
+        mps_drv = dmrg.MpsDriver(settings)
+
         mps_drv._initialize_random_mps()
         mps_drv.canonical_form(2)
         mps_drv.normalize()

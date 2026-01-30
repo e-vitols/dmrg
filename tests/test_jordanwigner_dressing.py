@@ -3,10 +3,7 @@ import copy
 import numpy as np
 import pytest
 
-from dmrg.mpo import MpoDriver
-from dmrg.mps import MpsDriver
-
-# import dmrg
+import dmrg
 
 # from dmrg.sweep import Sweep
 
@@ -19,16 +16,15 @@ class TestJordanWigner:
         Test the antisymmetry, i.e., that creating/annihilating a fermion twice in the same
         state collapses the MPS.
         """
-        mps_drv = MpsDriver()
-        mps_drv.local_dim = local_dim
-        mps_drv.max_bond_dim = m_bonddim
-        mps_drv.nr_sites = nr_sites
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
+        )
+        mpo_drv = dmrg.MpoDriver(settings)
+        mps_drv = dmrg.MpsDriver(settings)
+
         mps_drv._initialize_random_mps()
         mps_drv.canonical_form(0)
         mps = mps_drv.mps
-
-        mpo_drv = MpoDriver()
-        mpo_drv.nr_sites = mps_drv.nr_sites
 
         mpo = mpo_drv.dress_JW(site, spin, creation)
 
@@ -45,10 +41,11 @@ class TestJordanWigner:
         """
         Test that operators obey the standard commutation relations.
         """
-        mps_drv = MpsDriver()
-        mps_drv.local_dim = local_dim
-        mps_drv.max_bond_dim = m_bonddim
-        mps_drv.nr_sites = nr_sites
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
+        )
+        mps_drv = dmrg.MpsDriver(settings)
+
         for site1 in range(nr_sites - 1):
             for site2 in range(site1, nr_sites):
                 for spin in ["up", "down"]:
@@ -58,8 +55,7 @@ class TestJordanWigner:
                         mps1 = mps_drv.mps
                         mps2 = mps1.copy()
 
-                        mpo_drv = MpoDriver()
-                        mpo_drv.nr_sites = mps_drv.nr_sites
+                        mpo_drv = dmrg.MpoDriver(settings)
 
                         mpo_i = mpo_drv.dress_JW(site1, spin, creation)
                         mpo_j = mpo_drv.dress_JW(site2, spin, creation)
@@ -94,16 +90,15 @@ class TestJordanWigner:
         """
         # TODO: remove this, or double-check that thiis doesn't make sense
         # for the zero-vector/mps, as then the canonical form is not well-defined
-        mps_drv = MpsDriver()
-        mps_drv.local_dim = local_dim
-        mps_drv.max_bond_dim = m_bonddim
-        mps_drv.nr_sites = nr_sites
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
+        )
+        mps_drv = dmrg.MpsDriver(settings)
+        mpo_drv = dmrg.MpoDriver(settings)
+
         mps_drv._initialize_random_mps()
         mps_drv.canonical_form(canonical_center)
         mps = mps_drv.mps
-
-        mpo_drv = MpoDriver()
-        mpo_drv.nr_sites = mps_drv.nr_sites
 
         mpo = mpo_drv.dress_JW(site, spin, creation)
 

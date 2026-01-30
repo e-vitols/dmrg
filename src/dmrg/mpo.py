@@ -16,9 +16,9 @@ class MpoDriver(MpsDriver):
     # NOTE MPO structure is W[wL, wR, s_out, s_in]
     """
 
-    def __init__(self):
+    def __init__(self, settings):
         """
-        Initializes the MatrixProductOperator.
+        Initializes the MatrixProductOperator driver.
 
         Instance variables:
             - scf_results: The converged SCF results tensor from VeloxChem.
@@ -35,12 +35,24 @@ class MpoDriver(MpsDriver):
         self.nuc_repulsion_energy = None
         self.overlap = None
 
-        self.nr_sites = None
-        self.local_dim = None
-        self.max_bond_dim = None
+        # self.nr_sites = None
+        # self.local_dim = None
         self.nr_particles = None
+
+        self.settings = settings
+
+        # self.nr_sites = None
+        self.nr_sites = settings.nr_sites
+        # self.max_bond_dim = None
+        self.max_bond_dim = settings.max_bond_dim
+        # self.tolerance = 1e-9
+        self.tolerance = settings.svd_thr
+        # self.local_dim = None
+        self.local_dim = settings.local_dim
+        self.max_bond_dim = settings.max_bond_dim
+
         # inherit the attributes and methods of MpsDriver, HamiltonianDriver
-        super().__init__()
+        # super().__init__()
 
         # self.ham = HamiltonianDriver()
 
@@ -354,42 +366,6 @@ class MpoDriver(MpsDriver):
 
         # Right-most matrix (column-vector)
         # W_L = np.array([identity, n])[:,np.newaxis]
-        W_L = np.array([n, identity])[:, np.newaxis]
-        mpo.append(W_L)
-
-        return mpo
-
-    def hubbard_ham(self, U=1, chem_pot=0):
-        """
-        Implements the Hubbard Hamiltonian.
-        """
-        L = self.nr_sites
-        d = self.local_dim
-
-        # if spin == "up":
-        a_up_dagger = self.local_c("up", True, JW=False)
-        a_up = self.local_c("up", False, JW=False)
-        n_up = a_up_dagger @ a_up
-        # elif spin == "down":
-        a_down_dagger = self.local_c("down", True, JW=False)
-        a_down = self.local_c("down", False, JW=False)
-        n_down = a_down_dagger @ a_down
-        n = U * (n_up @ n_down) - chem_pot * (n_up + n_down)
-
-        identity = np.eye(d)
-        zero = np.zeros((d, d))
-
-        mpo = []
-
-        # Left-most matrix (row-vector)
-        W_0 = np.array([identity, n])[np.newaxis]
-        mpo.append(W_0)
-
-        W_i = np.array([[identity, n], [zero, identity]])
-        for i in range(1, L - 1):
-            mpo.append(W_i.copy())
-
-        # Right-most matrix (column-vector)
         W_L = np.array([n, identity])[:, np.newaxis]
         mpo.append(W_L)
 
@@ -858,7 +834,7 @@ class MpoDriver(MpsDriver):
             W[-1][t, 0] = ops[-1]
         return W
 
-    def hubbard_mpo_from_dressed_strings(self, t=1.0, U=0.0, mu=0.0):
+    def hubbard_mpo(self, t=1.0, U=0.0, mu=0.0):
         L = self.nr_sites
         d = self.local_dim
         I = np.eye(d)
@@ -915,8 +891,8 @@ class MpoDriver(MpsDriver):
         L = self.nr_sites
         d = self.local_dim
 
-        I = np.eye(d, dtype=np.complex128)
-        Z = np.zeros((d, d), dtype=np.complex128)
+        I = np.eye(d, dtype=np.float64)
+        Z = np.zeros((d, d), dtype=np.float64)
 
         c_up = self.local_c("up", dagger=False, JW=True)
         cd_up = self.local_c("up", dagger=True, JW=True)
@@ -939,7 +915,7 @@ class MpoDriver(MpsDriver):
         W = [None] * L
 
         # first site: (1,D,d,d)
-        W0 = np.zeros((1, D, d, d), dtype=np.complex128)
+        W0 = np.zeros((1, D, d, d), dtype=np.float64)
         W0[0, 0] = I
         W0[0, 1] = cd_up @ P
         W0[0, 2] = P @ c_up
@@ -950,7 +926,7 @@ class MpoDriver(MpsDriver):
 
         # middle sites: (D,D,d,d)
         for i in range(1, L - 1):
-            Wi = np.zeros((D, D, d, d), dtype=np.complex128)
+            Wi = np.zeros((D, D, d, d), dtype=np.float64)
             Wi[0, 0] = I
 
             # start hopping on this site
@@ -973,7 +949,7 @@ class MpoDriver(MpsDriver):
 
             W[i] = Wi
 
-        WL = np.zeros((D, 1, d, d), dtype=np.complex128)
+        WL = np.zeros((D, 1, d, d), dtype=np.float64)
 
         WL[0, 0] = h_loc
 
@@ -985,7 +961,6 @@ class MpoDriver(MpsDriver):
 
         # end fianl contributions
         WL[5, 0] = I
-
         W[-1] = WL
 
         return W

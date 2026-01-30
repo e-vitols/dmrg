@@ -1,6 +1,7 @@
 from .hamiltonian import HamiltonianDriver
 from .mpo import MpoDriver
 from .mps import MpsDriver
+from .settings import Settings
 from .sweep import SweepDriver
 
-__all__ = ["MpsDriver", "MpoDriver", "HamiltonianDriver", "SweepDriver"]
+__all__ = ["MpsDriver", "MpoDriver", "HamiltonianDriver", "SweepDriver", "Settings"]

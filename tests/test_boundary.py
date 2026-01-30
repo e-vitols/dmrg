@@ -2,21 +2,24 @@ import numpy as np
 import pytest
 
 import dmrg
-from dmrg.mpo import MpoDriver
-from dmrg.mps import MpsDriver
 
 
 class TestBoundary:
     def test_left_right_mixed_boundary(self, local_dim=4, m_bonddim=8, nr_sites=6):
         # TODO: separate into a different test per assertion
-        mpo_drv = MpoDriver()
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
+        )
+        mpo_drv = dmrg.MpoDriver(settings)
+        mps_drv = dmrg.MpsDriver(settings)
+        """
         mpo_drv.local_dim = local_dim
         mpo_drv.nr_sites = nr_sites
 
-        mps_drv = MpsDriver()
         mps_drv.local_dim = local_dim
         mps_drv.max_bond_dim = m_bonddim
         mps_drv.nr_sites = nr_sites
+        """
         mps_drv._initialize_random_mps()
         mps_drv.canonical_form(5)
         mps_drv.normalize()

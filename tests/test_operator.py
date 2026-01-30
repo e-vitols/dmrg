@@ -2,21 +2,16 @@ import numpy as np
 import pytest
 
 import dmrg
-from dmrg.mpo import MpoDriver
-from dmrg.mps import MpsDriver
 
 
 class TestOperator:
     def test_num_and_basic_ops(self, local_dim=4, m_bonddim=8, nr_sites=6):
         # TODO: separate into a different test per assertion
-        mps_drv = MpsDriver()
-        mps_drv.max_bond_dim = m_bonddim
-        mps_drv.local_dim = local_dim
-        mps_drv.nr_sites = nr_sites
-
-        mpo_drv = MpoDriver()
-        mpo_drv.local_dim = local_dim
-        mpo_drv.nr_sites = nr_sites
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
+        )
+        mpo_drv = dmrg.MpoDriver(settings)
+        mps_drv = dmrg.MpsDriver(settings)
 
         fixed_mps = [[] for _ in range(nr_sites)]
 
