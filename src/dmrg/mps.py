@@ -331,6 +331,20 @@ class MpsDriver:
         # self.mps[l + 1] = np.einsum("lr, rdm -> ldm", Vh, mps_next_site)
         return S
 
+    def bipartite_entang_entropy(self, center: int, mps=None):
+        """
+        Gets the entanglement entropy at the bond between site center and center+1
+        """
+        if mps is None:
+            mps = self.mps
+        self.canonical_form(center)
+        m_l, d, m_r = mps[center].shape
+
+        U, S, Vh = np.linalg.svd(mps[center].reshape(m_l * d, m_r), full_matrices=False)
+
+        ent_entropy = -1.0 * np.sum(S * np.log2(S))
+        return ent_entropy
+
     def get_twosite(self, center=None, mps=None):
         """
         Docstring for get_twosite

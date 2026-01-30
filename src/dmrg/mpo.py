@@ -261,7 +261,9 @@ class MpoDriver(MpsDriver):
 
         return two_site_op
 
-    def _construct_twosite_operator(self, creat_ind_spin, annih_ind_spin, local_dim=4):
+    def _construct_twosite_operator(
+        self, creat_ind_spin, annih_ind_spin, local_dim=4, virtual_bonds=False
+    ):
         """
         Implements two-site operator (particle-number conserving),
         i.e., annihilation followed by creation.
@@ -276,6 +278,10 @@ class MpoDriver(MpsDriver):
 
         creat_op = self.dress_JW(creat_ind, creat_spin, True, local_dim=local_dim)
         annih_op = self.dress_JW(annih_ind, annih_spin, False, local_dim=local_dim)
+
+        if virtual_bonds:
+            creat_op = [site_op[np.newaxis, np.newaxis] for site_op in creat_op]
+            annih_op = [site_op[np.newaxis, np.newaxis] for site_op in annih_op]
 
         # Overall operator = creat_op * annih_op  (rightmost acts first on a ket)
         return [A @ B for A, B in zip(creat_op, annih_op)]
@@ -910,10 +916,6 @@ class MpoDriver(MpsDriver):
         I = np.eye(d, dtype=np.complex128)
         Z = np.zeros((d, d), dtype=np.complex128)
 
-        # c_up  = self.local_c("up",   dagger=False, JW=False)
-        # cd_up = self.local_c("up",   dagger=True,  JW=False)
-        # c_dn  = self.local_c("down", dagger=False, JW=False)
-        # cd_dn = self.local_c("down", dagger=True,  JW=False)
         c_up = self.local_c("up", dagger=False, JW=True)
         cd_up = self.local_c("up", dagger=True, JW=True)
         c_dn = self.local_c("down", dagger=False, JW=True)
@@ -1007,7 +1009,32 @@ class MpoDriver(MpsDriver):
 
     @staticmethod
     def permute_integrals(t_ij, v_ijkl, perm):
+        """
+        simpler to just permute the MOs
+        """
         perm = np.asarray(perm, dtype=int)
         t_p = t_ij[np.ix_(perm, perm)]
         v_p = v_ijkl[np.ix_(perm, perm, perm, perm)]
         return t_p, v_p
+
+    def inverse_op(self):
+        """ """
+        pass
+
+    def one_rdm(self):
+        """
+        The 1-RDM matrix.
+        """
+        L = self.nr_sites
+        gamma_pq = np.zeros((L, L))
+        for p in range(L):
+            for q in range(L):
+                pq_up = self._construct_twosite_operator(
+                    (p, "up"), (q, "up"), virtual_bonds=True
+                )
+                pq_down = self._construct_twosite_operator(
+                    (p, "down"), (q, "down"), virtual_bonds=True
+                )
+                pq = self.add_mpos(pq_up, pq_down)
+                gamma_pq[p, q] = self.get_expectation_value(pq)
+        return gamma_pq

@@ -100,50 +100,88 @@ class SweepDriver:
         E0 = w[0].real
         return E0, Theta_opt
 
-    def compute(self, mps, mpo, center=0, convergence_thr=1e-6):
+    def compute(
+        self,
+        mpo,
+        mps=None,
+        center=0,
+        ene_conv_thr=1e-6,
+        trunc_conv_thr=1e-8,
+        allow_bond_growth=True,
+    ):
         """
         Starts with left-to-right sweep
         """
+        if mps is None:
+            mps = self.mps_drv.mps
+
         self.canonical_form(center=center, mps=mps)
         mps = self.normalize(mps=mps, center=center)
         self.mps_drv.mps = mps
+        nr_bonds = len(mps) - 1
 
         self.E_0 = 0
         self.converged = False
         for sweep in range(self.nr_sweeps):
             print(f"Sweep nr. {sweep+1}")
 
+            R_trunc_error = np.zeros(nr_bonds, dtype=float)
             # right-sweep
-            for cen in range(len(mps) - 1):
+            for cen in range(nr_bonds):
                 E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
                 _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
+
+                R_trunc_error[cen] = self.mps_drv.discarded_weight
                 self.mps_drv.mps = mps
                 self.mps_drv.canonical_center = cen
                 self.canonical_center = cen
-                # print([site_tensor.shape for site_tensor in mps])
+
             E_rsweep = self.mps_drv.get_expectation_value(mpo)
             print(
-                f"Energy after right sweep: {E_rsweep:.6f}\nDiscarded weight: {self.mps_drv.discarded_weight:.3e}"
+                f"Energy after left sweep : {E_rsweep:.6f} a.u.\n"
+                f"Discarded weight: max = {R_trunc_error.max():.3e}, mean = {R_trunc_error.mean():.3e} (worst bond: {int(R_trunc_error.argmax())})\n"
             )
 
+            L_trunc_error = np.zeros(nr_bonds, dtype=float)
             # left-sweep
-            for cen in range(len(mps) - 2, -1, -1):
+            for cen in range(nr_bonds - 1, -1, -1):
                 E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
                 _center, mps = self.mps_drv.split_twosite(theta, "left", center=cen)
+
+                L_trunc_error[cen] = self.mps_drv.discarded_weight
                 self.mps_drv.mps = mps
                 self.mps_drv.canonical_center = cen
                 self.canonical_center = cen
-                # print([site_tensor.shape for site_tensor in mps])
+
+            L_trunc_max = L_trunc_error.max()
             E_lsweep = self.mps_drv.get_expectation_value(mpo)
             print(
-                f"Energy after left sweep : {E_lsweep:.6f}\nDiscarded weight: {self.mps_drv.discarded_weight:.3e}\n"
+                f"Energy after left sweep : {E_lsweep:.6f} a.u.\n"
+                f"Discarded weight: max = {L_trunc_max:.3e}, mean = {L_trunc_error.mean():.3e} (worst bond: {int(L_trunc_error.argmax())})\n"
             )
 
-            if abs(self.E_0 - E_lsweep) < convergence_thr:
+            if allow_bond_growth and (L_trunc_max > trunc_conv_thr):
+                print(
+                    f"**OBS** Large truncation error: Maximum bond dimension increased from {self.mps_drv.max_bond_dim} to {self.mps_drv.max_bond_dim+2}"
+                )
+                self.mps_drv.max_bond_dim += 2
+            elif L_trunc_max > trunc_conv_thr:
+                print(
+                    f"**OBS** Large truncation error! Allowing for bond dimension growth is advised.\n"
+                )
+                # To allow for convergence with fixed bond dim
+                L_trunc_max = 0
+            else:
+                # To allow for convergence with fixed bond dim
+                L_trunc_max = 0
+
+            if abs(self.E_0 - E_lsweep) < ene_conv_thr and (
+                L_trunc_max < trunc_conv_thr
+            ):
                 self.converged = True
                 self.E_0 = E_lsweep
                 print(
-                    f"\n** Converged after {sweep+1} sweeps! **\nGround-state energy = {self.E_0:.6f}\n"
+                    f"\n** Converged after {sweep+1} sweeps! **\nGround-state energy = {self.E_0:.6f} a.u.\n"
                 )
                 return self.E_0, self.mps_drv.mps
 

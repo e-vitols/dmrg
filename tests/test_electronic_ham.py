@@ -46,7 +46,7 @@ class TestElectronicHamiltonian:
         mpo = mpo_drv.electronic_hamiltonian(h_ij, g_ijkl)
         sweep_drv = dmrg.SweepDriver(mps_drv=mps_drv, mpo_drv=mpo_drv)
 
-        E0, mps = sweep_drv.compute(mps_drv.mps, mpo)
+        E0, mps = sweep_drv.compute(mpo, mps=mps_drv.mps)
         total_ene = E0 + V_nuc
 
         # reference full-ci

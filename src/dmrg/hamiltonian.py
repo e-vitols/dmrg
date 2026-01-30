@@ -43,7 +43,7 @@ class HamiltonianDriver:
         self.nuc_repulsion_energy = V_nuc
         self.overlap = S
 
-    def get_transformed_integrals(self, molecule, basis, scf_results):
+    def get_transformed_integrals(self, molecule, basis, scf_results, permute=None):
         """
         Transform the AO-basis integrals to MO-basis.
 
@@ -57,6 +57,9 @@ class HamiltonianDriver:
         self.update_integrals(molecule, basis)
 
         C_alpha = scf_results["C_alpha"]
+        if permute is not None:
+            C_alpha = C_alpha[:, permute]
+
         h_ij = np.einsum(
             "uv, ui, vj -> ij", self.one_elec_ints_ao, C_alpha, C_alpha, optimize=True
         )
