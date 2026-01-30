@@ -12,6 +12,8 @@ from .mps import MpsDriver
 class MpoDriver(MpsDriver):
     """
     Implements the MatrixProductOperator by importing the orbitals and -- specific, for each operator -- integrals from VeloxChem.
+
+    # NOTE MPO structure is W[wL, wR, s_out, s_in]
     """
 
     def __init__(self):

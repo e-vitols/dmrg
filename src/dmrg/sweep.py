@@ -96,7 +96,7 @@ class SweepDriver:
         v0 = P0.reshape(-1)
 
         w, v = eigsh(Aop, k=1, which="SA", v0=v0, tol=tol, maxiter=maxiter)
-        Theta_opt = v[:, 0].reshape(shape)  # (Dl, dd, Dr)
+        Theta_opt = v[:, 0].reshape(shape)
         E0 = w[0].real
         return E0, Theta_opt
 

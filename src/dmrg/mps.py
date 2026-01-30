@@ -4,6 +4,7 @@ import numpy as np
 class MpsDriver:
     """
     Implements the MatrixProductState object.
+    # NOTE MPS structure is: (chiL, d, chiR)
 
     Instance variables:
         - nr_sites: The size of the system -- number of sites/orbitals.
@@ -341,8 +342,8 @@ class MpsDriver:
         m_l, d, m_r = mps[center].shape
 
         U, S, Vh = np.linalg.svd(mps[center].reshape(m_l * d, m_r), full_matrices=False)
-
-        ent_entropy = -1.0 * np.sum(S * np.log2(S))
+        lam = S**2
+        ent_entropy = -1.0 * np.sum(lam * np.log2(lam))
         return ent_entropy
 
     def get_twosite(self, center=None, mps=None):

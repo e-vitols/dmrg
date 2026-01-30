@@ -3,6 +3,10 @@ import veloxchem as vlx
 
 
 class HamiltonianDriver:
+    """
+    NOTE: this class is also responsible for mainly interafacing with VLX
+    """
+
     def __init__(self):
         self.orbitals = None
 
