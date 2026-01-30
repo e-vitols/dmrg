@@ -37,9 +37,9 @@ class TestElectronicHamiltonian:
         scf_drv.ostream.mute()
         scf_res = scf_drv.compute(molecule, basis)
 
-        ham_drv = dmrg.HamiltonianDriver()
-        h_ij, g_ijkl = ham_drv.get_transformed_integrals(molecule, basis, scf_res)
-        V_nuc = ham_drv.nuc_repulsion_energy
+        int_drv = dmrg.IntegralsDriver()
+        h_ij, g_ijkl = int_drv.get_transformed_integrals(molecule, basis, scf_res)
+        V_nuc = int_drv.nuc_repulsion_energy
 
         mpo = mpo_drv.electronic_hamiltonian(h_ij, g_ijkl)
         sweep_drv = dmrg.SweepDriver(settings, mps_drv=mps_drv, mpo_drv=mpo_drv)

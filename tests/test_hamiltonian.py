@@ -13,6 +13,7 @@ class TestOperator:
         )
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
+        op_drv = dmrg.OperatorDriver(settings)
 
         fixed_mps = [[] for _ in range(nr_sites)]
 
@@ -35,7 +36,7 @@ class TestOperator:
         assert np.abs(exp_value_spin_up.imag) < 1e-9
         assert np.abs(exp_value_spin_up.real - 1) < 1e-6
 
-        mpo = mpo_drv.dress_JW(3, "up", True)
+        mpo = op_drv.dress_JW(3, "up", True)
         mps_drv.mps = mpo_drv.apply_local_mpo(mpo, mps_drv.mps)
 
         exp_value_spin_up = mps_drv.get_expectation_value(

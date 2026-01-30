@@ -21,12 +21,13 @@ class TestJordanWigner:
         )
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
+        op_drv = dmrg.OperatorDriver(settings)
 
         mps_drv._initialize_random_mps()
         mps_drv.canonical_form(0)
         mps = mps_drv.mps
 
-        mpo = mpo_drv.dress_JW(site, spin, creation)
+        mpo = op_drv.dress_JW(site, spin, creation)
 
         transf_mps = mpo_drv.apply_local_mpo(mpo, mps)
         second_transf_mps = mpo_drv.apply_local_mpo(mpo, transf_mps)
@@ -45,6 +46,8 @@ class TestJordanWigner:
             nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
         )
         mps_drv = dmrg.MpsDriver(settings)
+        mpo_drv = dmrg.MpoDriver(settings)
+        op_drv = dmrg.OperatorDriver(settings)
 
         for site1 in range(nr_sites - 1):
             for site2 in range(site1, nr_sites):
@@ -55,10 +58,8 @@ class TestJordanWigner:
                         mps1 = mps_drv.mps
                         mps2 = mps1.copy()
 
-                        mpo_drv = dmrg.MpoDriver(settings)
-
-                        mpo_i = mpo_drv.dress_JW(site1, spin, creation)
-                        mpo_j = mpo_drv.dress_JW(site2, spin, creation)
+                        mpo_i = op_drv.dress_JW(site1, spin, creation)
+                        mpo_j = op_drv.dress_JW(site2, spin, creation)
 
                         mps_i = mpo_drv.apply_local_mpo(mpo_i, mps1)
                         mps_ij = mpo_drv.apply_local_mpo(mpo_j, mps_i)
@@ -95,15 +96,16 @@ class TestJordanWigner:
         )
         mps_drv = dmrg.MpsDriver(settings)
         mpo_drv = dmrg.MpoDriver(settings)
+        op_drv = dmrg.OperatorDriver(settings)
 
         mps_drv._initialize_random_mps()
         mps_drv.canonical_form(canonical_center)
         mps = mps_drv.mps
 
-        mpo = mpo_drv.dress_JW(site, spin, creation)
+        op = op_drv.dress_JW(site, spin, creation)
 
-        transf_mps = mpo_drv.apply_local_mpo(mpo, mps)
-        second_transf_mps = mpo_drv.apply_local_mpo(mpo, transf_mps)
+        transf_mps = mpo_drv.apply_local_mpo(op, mps)
+        second_transf_mps = mpo_drv.apply_local_mpo(op, transf_mps)
         mps_drv.mps = second_transf_mps
 
         mps_drv.canonical_form(canonical_center)

@@ -15,6 +15,7 @@ class Settings:
     local_dim: int
 
     max_bond_dim: int
+    nr_particles: int = 0
     svd_thr: float = 1e-9
     eig_thr: float = 1e-10
     nr_sweeps: int = 50
