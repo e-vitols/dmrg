@@ -28,7 +28,8 @@ class SweepDriver:
         self.nr_sweeps = settings.nr_sweeps
         self.nr_sites = settings.nr_sites
         self.max_bond_dim = settings.max_bond_dim
-        self.tolerance = settings.svd_thr
+        self.svd_tolerance = settings.svd_thr
+        self.eig_tolerance = settings.eig_thr
         self.local_dim = settings.local_dim
         self.allow_bond_growth = settings.allow_bond_growth
         self.bond_growth_step = settings.bond_growth_step
@@ -94,7 +95,7 @@ class SweepDriver:
 
         return LinearOperator((n, n), matvec=_matvec, dtype=dtype), shape
 
-    def solve_local_two_site(self, mpo, mps, center=None, tol=1e-10, maxiter=None):
+    def solve_local_two_site(self, mpo, mps, center=None, maxiter=None):
         Aop, shape = self._effective_linop(mpo, mps, center=center, two_site=True)
 
         if center is None:
@@ -103,7 +104,9 @@ class SweepDriver:
         P0 = self.get_twosite(center=center, mps=mps)
         v0 = P0.reshape(-1)
 
-        w, v = eigsh(Aop, k=1, which="SA", v0=v0, tol=tol, maxiter=maxiter)
+        w, v = eigsh(
+            Aop, k=1, which="SA", v0=v0, tol=self.eig_tolerance, maxiter=maxiter
+        )
         Theta_opt = v[:, 0].reshape(shape)
         E0 = w[0].real
         return E0, Theta_opt
@@ -130,39 +133,51 @@ class SweepDriver:
 
         self.E_0 = 0
         self.converged = False
+
         for sweep in range(self.nr_sweeps):
             print(f"Sweep nr. {sweep+1}")
 
             R_trunc_error = np.zeros(nr_bonds, dtype=float)
             # right-sweep
             for cen in range(nr_bonds):
-                E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
+                # E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
+                E, theta = self.solve_local_two_site(mpo, mps, center=cen)
+                # E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
                 _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
+                # _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
 
                 R_trunc_error[cen] = self.mps_drv.discarded_weight
                 self.mps_drv.mps = mps
-                self.mps_drv.canonical_center = cen
-                self.canonical_center = cen
+                self.mps_drv.canonical_center = _center
+                self.mpo_drv.canonical_center = _center
+                self.canonical_center = _center
 
-            E_rsweep = self.mps_drv.get_expectation_value(mpo)
+            E_rsweep = self.mps_drv.get_expectation_value(mpo, center=cen)
             print(
-                f"Energy after left sweep : {E_rsweep:.6f} a.u.\n"
+                f"Energy after right sweep : {E_rsweep:.6f} a.u.\n"
                 f"Discarded weight: max = {R_trunc_error.max():.3e}, mean = {R_trunc_error.mean():.3e} (worst bond: {int(R_trunc_error.argmax())})\n"
             )
 
             L_trunc_error = np.zeros(nr_bonds, dtype=float)
             # left-sweep
             for cen in range(nr_bonds - 1, -1, -1):
-                E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
+                # E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
+                E, theta = self.solve_local_two_site(mpo, mps, center=cen)
                 _center, mps = self.mps_drv.split_twosite(theta, "left", center=cen)
 
                 L_trunc_error[cen] = self.mps_drv.discarded_weight
                 self.mps_drv.mps = mps
-                self.mps_drv.canonical_center = cen
-                self.canonical_center = cen
+                # self.mps_drv.canonical_center = cen
+                # self.mpo_drv.canonical_center = cen
+                # self.canonical_center = cen
+                self.mps_drv.canonical_center = _center
+                self.mpo_drv.canonical_center = _center
+                self.canonical_center = _center
 
             L_trunc_max = L_trunc_error.max()
-            E_lsweep = self.mps_drv.get_expectation_value(mpo)
+            # E_lsweep = self.mps_drv.get_expectation_value(mpo, center=cen)
+            E_lsweep = self.mps_drv.get_expectation_value(mpo, center=_center)
+
             print(
                 f"Energy after left sweep : {E_lsweep:.6f} a.u.\n"
                 f"Discarded weight: max = {L_trunc_max:.3e}, mean = {L_trunc_error.mean():.3e} (worst bond: {int(L_trunc_error.argmax())})\n"
@@ -194,5 +209,3 @@ class SweepDriver:
                 return self.E_0, self.mps_drv.mps
 
             self.E_0 = E_lsweep
-            # TODO: add nuclear energy
-            # self.total_energy = self.E_0 + self.V_nuc

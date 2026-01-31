@@ -5,42 +5,38 @@ import dmrg
 
 
 class TestOperator:
-    def test_num_and_basic_ops(self, local_dim=4, m_bonddim=8, nr_sites=6):
+    def test_chem_pot(self, m_bonddim=8, nr_sites=4, canonical_center=0):
         # TODO: separate into a different test per assertion
-        settings = dmrg.Settings(
-            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
-        )
+        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
-        op_drv = dmrg.OperatorDriver(settings)
 
-        fixed_mps = [[] for _ in range(nr_sites)]
-
-        for i in range(nr_sites):
-            fixed_mps[i] = np.array([1, 0, 0, 0])[np.newaxis, :, np.newaxis]
-
-        fixed_mps[0] = np.array([0, 1, 0, 0])[np.newaxis, :, np.newaxis]
-
-        mps_drv.mps = fixed_mps
-        canonical_center = 2
+        mps_drv._initialize_fixed_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 
-        assert np.abs(mps_drv.canonical_norm() - 1) < 1e-8
+        mpo = mpo_drv.chem_pot_mpo(coupling=1)
+        exp_val = mps_drv.get_expectation_value(mpo)
 
-        exp_value_spin_up = mps_drv.get_expectation_value(
-            mpo_drv.num_op("up"), center=2
-        )
+        ref = 4.00000000000000
 
-        assert np.abs(exp_value_spin_up.imag) < 1e-9
-        assert np.abs(exp_value_spin_up.real - 1) < 1e-6
+        assert abs(exp_val - ref) < 1e-6
 
-        mpo = op_drv.dress_JW(3, "up", True)
-        mps_drv.mps = mpo_drv.apply_local_mpo(mpo, mps_drv.mps)
+    # @pytest.mark.slow
+    def test_chem_pot(self, m_bonddim=8, nr_sites=4, canonical_center=0):
+        # TODO: separate into a different test per assertion
+        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
+        mpo_drv = dmrg.MpoDriver(settings)
+        mps_drv = dmrg.MpsDriver(settings)
 
-        exp_value_spin_up = mps_drv.get_expectation_value(
-            mpo_drv.num_op("up"), center=2
-        )
+        mps_drv._initialize_fixed_mps()
+        mps_drv.canonical_form(canonical_center)
+        mps_drv.normalize()
 
-        assert np.abs(exp_value_spin_up.imag) < 1e-9
-        assert np.abs(exp_value_spin_up.real - 2) < 1e-6
+        mpo = mpo_drv.chem_pot_mpo(coupling=-1)
+
+        sweep_drv = dmrg.SweepDriver(settings, mpo_drv=mpo_drv, mps_drv=mps_drv)
+
+        E0, mps = sweep_drv.compute(mpo)
+
+        assert abs(E0 - 8)

@@ -16,3 +16,8 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["dmrg", "dmrg.*"]
+
+[tool.pytest.ini_options]
+markers = [
+  "slow: long-running tests",
+]

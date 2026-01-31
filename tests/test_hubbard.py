@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-import veloxchem as vlx
 
 import dmrg
 
@@ -10,12 +9,13 @@ import dmrg
 
 
 class TestHubbardHamiltonian:
-    def test_hubbard(self, local_dim=4, m_bonddim=8, nr_sites=4):
+    def test_hubbard_efficient(self, m_bonddim=4, nr_sites=3):
+        """
+        Tests Hubbard with the fixed bond dim MPO.
+        """
         canonical_center = 0
 
-        settings = dmrg.Settings(
-            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
-        )
+        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
@@ -26,7 +26,57 @@ class TestHubbardHamiltonian:
         mpo = mpo_drv.hubbard_mpo(t=1, U=2, mu=1)
         sweep_drv = dmrg.SweepDriver(settings, mps_drv=mps_drv, mpo_drv=mpo_drv)
 
-        E0, mps = sweep_drv.compute(mpo, mps=mps_drv.mps)
+        E0, mps = sweep_drv.compute(mpo)
+
+        # reference
+        ref = -4.8200893743747875
+
+        assert abs(E0 - ref) < 1e-10
+
+    def test_hubbard_naive(self, m_bonddim=4, nr_sites=3):
+        """
+        Tests Hubbard with the fixed bond dim MPO.
+        """
+        canonical_center = 0
+
+        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
+        mpo_drv = dmrg.MpoDriver(settings)
+        mps_drv = dmrg.MpsDriver(settings)
+
+        mps_drv._initialize_random_mps()
+        mps_drv.canonical_form(canonical_center)
+        mps_drv.normalize()
+
+        mpo = mpo_drv.hubbard_mpo_naive(t=1, U=2, mu=1)
+        sweep_drv = dmrg.SweepDriver(settings, mps_drv=mps_drv, mpo_drv=mpo_drv)
+
+        E0, mps = sweep_drv.compute(mpo)
+
+        # reference
+        ref = -4.8200893743747875
+
+        assert abs(E0 - ref) < 1e-10
+
+    @pytest.mark.slow
+    def test_hubbard_naive_long(self, m_bonddim=8, nr_sites=4):
+        """
+        Tests Hubbard with the naiveöly built MPO.
+        """
+        canonical_center = 0
+
+        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
+        mpo_drv = dmrg.MpoDriver(settings)
+        mps_drv = dmrg.MpsDriver(settings)
+
+        mps_drv._initialize_random_mps()
+        mps_drv.canonical_form(canonical_center)
+        mps_drv.normalize()
+
+        mpo = mpo_drv.hubbard_mpo_naive(t=1, U=2, mu=1)
+
+        sweep_drv = dmrg.SweepDriver(settings, mps_drv=mps_drv, mpo_drv=mpo_drv)
+
+        E0, mps = sweep_drv.compute(mpo)
 
         # reference
         ref = -6.875942809005068

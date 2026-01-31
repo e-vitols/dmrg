@@ -6,11 +6,9 @@ import dmrg
 
 
 class TestOperator:
-    def test_num_and_basic_ops(self, local_dim=4, m_bonddim=8, nr_sites=6):
+    def test_num_and_basic_ops(self, m_bonddim=8, nr_sites=6):
         # TODO: separate into a different test per assertion
-        settings = dmrg.Settings(
-            nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
-        )
+        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
         op_drv = dmrg.OperatorDriver(settings)
@@ -30,7 +28,7 @@ class TestOperator:
         assert np.abs(mps_drv.canonical_norm() - 1) < 1e-8
 
         exp_value_spin_up = mps_drv.get_expectation_value(
-            mpo_drv.num_op("up"), center=2
+            mpo_drv.number_mpo("up"), center=2
         )
 
         assert np.abs(exp_value_spin_up.imag) < 1e-9
@@ -40,7 +38,7 @@ class TestOperator:
         mps_drv.mps = mpo_drv.apply_local_mpo(mpo, mps_drv.mps)
 
         exp_value_spin_up = mps_drv.get_expectation_value(
-            mpo_drv.num_op("up"), center=2
+            mpo_drv.number_mpo("up"), center=2
         )
 
         assert np.abs(exp_value_spin_up.imag) < 1e-9

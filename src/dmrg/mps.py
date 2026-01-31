@@ -419,18 +419,12 @@ class MpsDriver:
         if direction == "right":
             mps[center] = U.reshape(l, d1, chi)
             mps[center + 1] = (np.diag(S) @ Vh).reshape(chi, d2, r)
-            # Retain normalization
-            # mps[center + 1] /= 1 - schur_complement
-            # self.canonical_center += 1
             new_canonical_center += 1
 
         elif direction == "left":
             mps[center] = (U @ np.diag(S)).reshape(l, d1, chi)
-            # Retain normalization
-            # mps[center] /= 1 - schur_complement
             mps[center + 1] = Vh.reshape(chi, d2, r)
-            # self.canonical_center -= 1
-            new_canonical_center -= 1
+            new_canonical_center = max(center - 1, 0)
 
         return new_canonical_center, mps
 

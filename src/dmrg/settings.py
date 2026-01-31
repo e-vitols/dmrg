@@ -12,9 +12,9 @@ class Settings:
     """
 
     nr_sites: int
-    local_dim: int
-
     max_bond_dim: int
+
+    local_dim: int = 4
     nr_particles: int = 0
     svd_thr: float = 1e-9
     eig_thr: float = 1e-10
