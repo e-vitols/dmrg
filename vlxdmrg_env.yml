@@ -17,3 +17,10 @@ dependencies:
   - xtb
   - pytest
   - pybind11
+  - numpy
+  - scipy
+  - h5py
+  - setuptools
+  - wheel
+  - build
+  - pybind11

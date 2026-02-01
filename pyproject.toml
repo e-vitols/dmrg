@@ -8,8 +8,9 @@ dependencies = ["numpy", "h5py", "scipy"]
 authors = [
     {name = "Erik Vitols", email = "evitols@kth.se"},
 ]
-license = {file = "LICENSE"}
 
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 
 [build-system]
 requires = ["setuptools >= 77.0.3", "numpy", "wheel", "pybind11>=2.11"]
