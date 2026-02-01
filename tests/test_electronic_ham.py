@@ -39,7 +39,7 @@ class TestElectronicHamiltonian:
         h_ij, g_ijkl = int_drv.get_transformed_integrals(molecule, basis, scf_res)
         V_nuc = int_drv.nuc_repulsion_energy
 
-        mpo = mpo_drv.electronic_hamiltonian(h_ij, g_ijkl)
+        mpo = mpo_drv.electronic_mpo(h_ij, g_ijkl)
         sweep_drv = dmrg.SweepDriver(settings, mps_drv=mps_drv, mpo_drv=mpo_drv)
 
         E0, mps = sweep_drv.compute(mpo, mps=mps_drv.mps)
@@ -55,6 +55,17 @@ class TestElectronicHamiltonian:
 
         assert abs(1.9745765353554527 - occ0) < 1e-6
         assert abs(0.0254234646445475 - occ1) < 1e-6
+
+        tot_occ = mps_drv.get_expectation_value(mpo_drv.total_number_mpo())
+        assert abs(2.0 - tot_occ) < 1e-6
+
+        f_norm = mps_drv.full_norm()
+        c_norm = mps_drv.canonical_norm()
+        id_norm = mps_drv.get_expectation_value(mpo_drv.identity_mpo())
+
+        assert abs(1 - f_norm) < 1e-6
+        assert abs(1 - c_norm) < 1e-6
+        assert abs(1 - id_norm) < 1e-6
 
     @pytest.mark.slow
     def test_h2_631G(self, m_bonddim=4, nr_sites=4):
@@ -86,7 +97,7 @@ class TestElectronicHamiltonian:
         h_ij, g_ijkl = int_drv.get_transformed_integrals(molecule, basis, scf_res)
         V_nuc = int_drv.nuc_repulsion_energy
 
-        mpo = mpo_drv.electronic_hamiltonian(h_ij, g_ijkl)
+        mpo = mpo_drv.electronic_mpo(h_ij, g_ijkl)
         sweep_drv = dmrg.SweepDriver(settings, mps_drv=mps_drv, mpo_drv=mpo_drv)
 
         E0, mps = sweep_drv.compute(mpo)

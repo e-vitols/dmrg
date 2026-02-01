@@ -10,9 +10,16 @@ from .operators import OperatorDriver
 
 
 # class MpoDriver(MpsDriver, HamiltonianDriver):
-class MpoDriver(MpsDriver):
+class MpoDriver:
     """
-    Implements the MatrixProductOperator by importing the orbitals and -- specific, for each operator -- integrals from VeloxChem.
+    Implements the MatrixProductOperator.
+
+    Instance variables:
+        - ops_drv: The driver responsible for supplying operator strings that define the MPOs.
+        - nr_sites: The size of the system -- number of sites/orbitals. (int)
+        - max_bond_dim: The maximum bond-dimension allowed. (int)
+        - tolerance: The tolerance for discarding singular values/Schmidt coefficients. (float)
+        - local_dim: Local dimension of the sites (only uniform is allowed), i.e., if local_dim = 4, 4 allowed occupations of the site: 0, up/alpha, down/beta, or alpha+beta. (int)
 
     # NOTE MPO structure is W[wL, wR, s_out, s_in]
     """
@@ -21,43 +28,41 @@ class MpoDriver(MpsDriver):
         """
         Initializes the MatrixProductOperator driver.
 
-        Instance variables:
-            - scf_results: The converged SCF results tensor from VeloxChem.
-            - operator: Specific operator to construct, if not given, the Hamiltonian is assumed.
+        :param settings:
+            Sets the instance variables of the class.
         """
-        # TODO: create an initalize function requiring: self.local_dim and self.nr_sites
-
-        # self.nr_sites = None
-        # self.local_dim = None
-        # self.nr_particles = None
-
         self.settings = settings
         self.ops_drv = OperatorDriver(settings)
 
-        # self.nr_sites = None
         self.nr_sites = settings.nr_sites
-        # self.max_bond_dim = None
         self.max_bond_dim = settings.max_bond_dim
-        # self.tolerance = 1e-9
         self.tolerance = settings.svd_thr
-        # self.local_dim = None
         self.local_dim = settings.local_dim
         self.max_bond_dim = settings.max_bond_dim
         self.nr_particles = settings.nr_particles
 
+    """
     def mpo_converted_JW(self, jw_string):
         mpo = []
         for core in jw_string:
             mpo.append(core[np.newaxis, :, :, np.newaxis])
         return mpo
 
+    """
+
     @staticmethod
     def apply_local_mpo(mpo, mps):
         """
         Apply operator (only local operator)
+        NOTE mainly kept for debugging and tests.
+
+        :param mpo:
+            The matrix-product operator object (list of numpy arrays).
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
 
         :returns:
-            The transformed MPS
+            The transformed MPS.
         """
         transf_mps = mps.copy()
 
@@ -66,53 +71,92 @@ class MpoDriver(MpsDriver):
 
         return transf_mps
 
+    def identity_mpo(self):
+        """
+        Implements the identity operator, for debugging purposes and constructing other MPOs.
+
+        :return:
+            The identity MPO. (list of arrays)
+        """
+        L = self.nr_sites
+
+        I = self.ops_drv.identity_local()
+
+        mpo = []
+        # Left-most matrix (row-vector)
+        W_0 = np.array([I])
+        mpo.append(W_0[np.newaxis])
+
+        W_i = np.array([I])
+        for i in range(1, L - 1):
+            mpo.append(W_i[np.newaxis])
+
+        # Right-most matrix (column-vector)
+        W_L = np.array([I])
+        mpo.append(W_L[np.newaxis])
+
+        return mpo
+
     @staticmethod
-    def add_mpos(mpo1, mpo2):
+    def add_mpos(mpoA, mpoB):
         """
         Sum two MPOs given as lists of tensors W[i] with shape (l, r, d, d).
-        Returns an MPO for (A + B).
+
+        :param mpoA:
+            The matrix-product operator object. (list of numpy arrays)
+        :param mpoB:
+            The matrix-product operator object. (list of numpy arrays)
+
+        :return:
+            An MPO for (mpo1 + mpo2). (list of numpy arrays)
         """
-        if len(mpo1) != len(mpo2):
-            raise ValueError("MPOs are of different lengths")
-        L = len(mpo1)
-        out = []
+        if len(mpoA) != len(mpoB):
+            raise AttributeError("MPOs are of different lengths")
+        L = len(mpoA)
+        summed_mpo = []
 
         for i in range(L):
-            WA, WB = mpo1[i], mpo2[i]
+            WA, WB = mpoA[i], mpoB[i]
             l1, r1, d1, d2 = WA.shape
             l2, r2, d1, d2 = WB.shape
 
             dtype = np.result_type(WA.dtype, WB.dtype)
-
+            # Row-vector
             if i == 0:
                 # (1, r1+r2, d, d)
-                assert l1 == l2 == 1
                 W = np.concatenate(
                     [WA.astype(dtype, copy=False), WB.astype(dtype, copy=False)], axis=1
                 )
 
+            # Column vector
             elif i == L - 1:
                 # (l1+l2, 1, d, d)
-                assert r1 == r2 == 1
                 W = np.concatenate(
                     [WA.astype(dtype, copy=False), WB.astype(dtype, copy=False)], axis=0
                 )
-
+            # Matrix
             else:
-                # block-diagonal: (l1+l2, r1+r2, d, d)
+                # diagonal: (l1+l2, r1+r2, d, d)
                 W = np.zeros((l1 + l2, r1 + r2, d1, d2), dtype=dtype)
                 W[:l1, :r1, :, :] = WA
                 W[l1:, r1:, :, :] = WB
 
-            out.append(W)
+            summed_mpo.append(W)
 
-        return out
+        return summed_mpo
 
     @staticmethod
     def mpo_from_opstrings(opstrings, coeffs):
         """
-        Constructs a general MPO from operator strings and coefficients, in a 'naive' way.
-        Returns MPO list W[i] with shapes (l,r,d,d).
+        Constructs a general MPO from operator strings and coefficients, in a 'naive' way -- simply added on the diagonal.
+
+        :param opstrings:
+            Strings defining operators as they are defined within OperatorDriver object. (list of arrays)
+        :param coeffs:
+            The associated coefficients from the ops_drv ovbject. (list of arrays)
+
+        :return:
+            MPO. (list of arrays)
         """
         T = len(opstrings)
         L = len(opstrings[0])
@@ -142,6 +186,11 @@ class MpoDriver(MpsDriver):
             The site index and spin of the creation operator (tuple).
         :param annih_ind_spin:
             The site index and spin of the annihialtion operator (tuple).
+        :param virtual_bonds:
+            Extends with new axes for consistency when used by on their own. (bool)
+
+        :return:
+            The MPO construction of creation followed by annihilation at specified sites and with speficied spin.
         """
         creat_ind, creat_spin = creat_ind_spin
         annih_ind, annih_spin = annih_ind_spin
@@ -160,13 +209,20 @@ class MpoDriver(MpsDriver):
         self, creat_ind_spin, creat_ind_spin_p, annih_ind_spin_p, annih_ind_spin
     ):
         """
-        Implements two-site operator (particle-number conserving),
+        Implements four-site operator (particle-number conserving),
         i.e., annihilation followed by creation.
 
         :param creat_ind_spin:
-            The site index and spin of the creation operator (tuple).
+            The site index (int) and spin (str) of the creation operator. (tuple)
+        :param creat_ind_spin_p:
+            The site index (int) and spin (str) of the creation operator. (tuple)
         :param annih_ind_spin:
-            The site index and spin of the annihialtion operator (tuple).
+            The site index (int) and spin (str) of the annihialtion operator. (tuple)
+        :param annih_ind_spin_p:
+            The site index (int) and spin (str) of the annihialtion operator. (tuple)
+
+        :return:
+            The MPO construction of creation followed by annihilation at specified sites and with speficied spin.
         """
         creat_ind, creat_spin = creat_ind_spin
         annih_ind, annih_spin = annih_ind_spin
@@ -186,11 +242,18 @@ class MpoDriver(MpsDriver):
 
     def onsite_sum_mpo(self, operator, coupling=1):
         """
-        Implements the general operator for onsite sums, e.g., number operator or chemical pot.
+        Implements the general MPO for onsite sums of local operators, e.g., number operator or chemical pot.
+
+        :param opstrings:
+            Strings defining operators as they are defined within OperatorDriver object. (list of arrays)
+        :param coupling:
+            The associated coefficient from the ops_drv ovbject. (list of arrays)
+
+        :return:
+            The MPO converted from the operator and cofficients.
         """
         L = self.nr_sites
 
-        # n = coupling * (self.ops_drv.number_total_local())
         I = self.ops_drv.identity_local()
         zero = self.ops_drv.zero_local()
 
@@ -211,111 +274,59 @@ class MpoDriver(MpsDriver):
         return mpo
 
     def local_mpo(self, operator, site):
-        """ """
+        """
+        Implements a local MPO from a local operator, i.e., acting only on one site.
+
+        :param operator:
+            Local operator as is defined within OperatorDriver object. (array)
+        :param site:
+            The site at which the operator acts. (int)
+
+        :return:
+            The local MPO. (list of arrays)
+        """
         mpo = self.identity_mpo()
         mpo[site][:, :] = operator
         return mpo
 
-    def number_mpo(self, spin: str):
+    def number_mpo(self, spin):
         """
         Implements the number operator for a specific spin sector.
+
+        :param spin:
+            The spin (up/down). (str)
+
+        :return:
+            The number operator MPO of specific spin. (list of arrays)
         """
         operator = self.ops_drv.number_local(spin)
         return self.onsite_sum_mpo(operator)
 
-    def total_number_mpo(self):
+    def total_number_mpo(self, coupling=1):
         """
         Get the total number operator.
-        """
-        up = self.number_mpo("up")
-        dn = self.number_mpo("up")
-        return self.add_mpos(up, dn)
 
-    def chem_pot_mpo(self, coupling=1):
-        """
-        Implements the chemical potential operator.
-        """
-        L = self.nr_sites
+        :param coupling:
+            Coefficient to scale the operator (uniform) -- should be 1. (float)
 
-        n = coupling * (self.ops_drv.number_total_local())
-        I = self.ops_drv.identity_local()
-        zero = self.ops_drv.zero_local()
-
-        mpo = []
-
-        # Left-most matrix (row-vector)
-        W_0 = np.array([I, n])[np.newaxis]
-        mpo.append(W_0)
-
-        W_i = np.array([[I, n], [zero, I]])
-        for i in range(1, L - 1):
-            mpo.append(W_i.copy())
-
-        # Right-most matrix (column-vector)
-        W_L = np.array([n, I])[:, np.newaxis]
-        mpo.append(W_L)
-
-        return mpo
-
-    def _chem_pot_mpo(self, coupling=1):
-        """
-        Implements the chemical potential operator.
+        :return:
+            The MPO of total number operator. (list of arrays)
         """
         operator = self.ops_drv.number_total_local()
         return self.onsite_sum_mpo(operator, coupling)
 
-    def identity_mpo(self):
+    def chem_pot_mpo(self, coupling=1):
         """
-        Implements the identity operator, mainly for debugging purposes.
+        Get the chemical potential operator.
+
+        :param coupling:
+            Coefficient to scale the operator (uniform). (float)
+
+        :return:
+            The MPO of total number operator. (list of arrays)
         """
-        L = self.nr_sites
-
-        I = self.ops_drv.identity_local()
-
-        mpo = []
-        # Left-most matrix (row-vector)
-        W_0 = np.array([I])
-        mpo.append(W_0[np.newaxis])
-
-        W_i = np.array([I])
-        for i in range(1, L - 1):
-            mpo.append(W_i[np.newaxis])
-
-        # Right-most matrix (column-vector)
-        W_L = np.array([I])
-        mpo.append(W_L[np.newaxis])
-
-        return mpo
-
-    def one_e_ham(self):
-        """
-        Implements the one-electron hamiltonian naively.
-        """
-
-        nr_sites = self.nr_sites
-        local_dim = self.local_dim
-
-        nr_terms = 2 * nr_sites**2
-
-        W = [[] for _ in range(nr_sites)]
-        W[0] = np.zeros((nr_terms, 1, local_dim, local_dim))
-        for l in range(1, nr_sites - 1):
-            W[l] = np.zeros((nr_terms, nr_terms, local_dim, local_dim))
-        W[-1] = np.zeros((1, nr_terms, local_dim, local_dim))
-
-        n = 0
-        for i in range(nr_sites):
-            for j in range(nr_sites):
-                for spin in ["up", "down"]:
-                    creat_op, annih_op = (i, spin), (j, spin)
-                    operator = self._construct_twosite_operator(creat_op, annih_op)
-                    W[0][n, 0] = operator[0]
-                    for l in range(1, nr_sites - 1):
-                        W[l][n, n] = operator[l]
-                    W[-1][0, n] = operator[-1]
-
-                    n += 1
-        return W
+        operator = self.ops_drv.number_total_local()
+        return self.onsite_sum_mpo(operator, coupling)
 
     def get_twosite_mpo(self, mpo, center=None):
         """
@@ -348,14 +359,50 @@ class MpoDriver(MpsDriver):
         W2 = tmp.reshape(l, r, d**2, d**2)
         return W2
 
-    def electronic_hamiltonian(self, t_ij, v_ijkl):
+    def one_e_mpo(self):
         """
-        Constructs the full electronic Hamiltonian as an MPO.
+        Implements the one-electron hamiltonian naively.
 
-        :param h_ij:
+        :return:
+            The one-electron Hamiltonian as an MPO. (list of arrays)
+        """
+
+        nr_sites = self.nr_sites
+        local_dim = self.local_dim
+
+        nr_terms = 2 * nr_sites**2
+
+        W = [[] for _ in range(nr_sites)]
+        W[0] = np.zeros((nr_terms, 1, local_dim, local_dim))
+        for l in range(1, nr_sites - 1):
+            W[l] = np.zeros((nr_terms, nr_terms, local_dim, local_dim))
+        W[-1] = np.zeros((1, nr_terms, local_dim, local_dim))
+
+        n = 0
+        for i in range(nr_sites):
+            for j in range(nr_sites):
+                for spin in ["up", "down"]:
+                    creat_op, annih_op = (i, spin), (j, spin)
+                    operator = self._construct_twosite_operator(creat_op, annih_op)
+                    W[0][n, 0] = operator[0]
+                    for l in range(1, nr_sites - 1):
+                        W[l][n, n] = operator[l]
+                    W[-1][0, n] = operator[-1]
+
+                    n += 1
+        return W
+
+    def electronic_mpo(self, t_ij, v_ijkl):
+        """
+        Constructs the full electronic Hamiltonian as an MPO, in a 'naive' way.
+
+        :param t_ij:
             The one-electron integrals in MO-basis.
         :param v_ijkl:
             The two-electron integrals in MO-basis.
+
+        :return:
+            The electronic Hamiltonian as an MPO.
         """
         nr_sites = self.nr_sites
         local_dim = self.local_dim
@@ -598,7 +645,7 @@ class MpoDriver(MpsDriver):
         """ """
         pass
 
-    def one_rdm(self):
+    def one_rdm(self, mps_drv):
         """
         The 1-RDM matrix.
         """
@@ -613,5 +660,5 @@ class MpoDriver(MpsDriver):
                     (p, "down"), (q, "down"), virtual_bonds=True
                 )
                 pq = self.add_mpos(pq_up, pq_down)
-                gamma_pq[p, q] = self.get_expectation_value(pq)
+                gamma_pq[p, q] = mps_drv.get_expectation_value(pq)
         return gamma_pq

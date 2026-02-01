@@ -7,27 +7,25 @@ class MpsDriver:
     # NOTE MPS structure is: (chiL, d, chiR)
 
     Instance variables:
-        - nr_sites: The size of the system -- number of sites/orbitals.
-        - max_bond_dim: The maximum bond-dimension allowed.
-        - tolerance: The tolerance for discarding singular values/Schmidt coefficients.
-        - local_dim: Local dimension of the sites (only uniform is allowed), i.e., if local_dim = 4,
-                     4 allowed occupations of the site: 0, alpha, beta, or alpha+beta.
+        - nr_sites: The size of the system -- number of sites/orbitals. (int)
+        - max_bond_dim: The maximum bond-dimension allowed. (int)
+        - tolerance: The tolerance for discarding singular values/Schmidt coefficients. (float)
+        - local_dim: Local dimension of the sites (only uniform is allowed), i.e., if local_dim = 4, 4 allowed occupations of the site: 0, up/alpha, down/beta, or alpha+beta. (int)
     """
 
     def __init__(self, settings):
         """
         Initializes the MatrixProductState object.
+
+        :param settings:
+            Sets the instance variables of the class.
         """
         # Settings specifying the
         self.settings = settings
 
-        # self.nr_sites = None
         self.nr_sites = settings.nr_sites
-        # self.max_bond_dim = None
         self.max_bond_dim = settings.max_bond_dim
-        # self.tolerance = 1e-9
         self.tolerance = settings.svd_thr
-        # self.local_dim = None
         self.local_dim = settings.local_dim
 
         self.mps = None
@@ -40,7 +38,7 @@ class MpsDriver:
         Initializes the MatrixProductState object with random coefficients.
 
         :return mps:
-            Returns a matrix-product state (MPS) with random coefficients.
+            Returns a matrix-product state (MPS) with random (complex) coefficients. (list of arrays)
         """
         L = self.nr_sites
         d = self.local_dim
@@ -53,7 +51,6 @@ class MpsDriver:
 
         # Left-most matrix (row-vector)
         m_l = 1
-        # m_r = max(1, min(m, d))
         m_r = chi(0)
         A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
         mps.append(A)
@@ -61,10 +58,9 @@ class MpsDriver:
         # The middle sites (matrices) are built iteratively, taking the shape of the previous sites right dimension for the new left
         for i in range(1, L - 1):
             m_l = mps[-1].shape[2]
-            # m_r = max(1, min(m, d))
             m_r = chi(i)
             A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
-            mps.append(A)
+            mps.append(A.copy())
 
         # Right-most matrix (column-vector)
         m_l = mps[-1].shape[2]
@@ -76,10 +72,10 @@ class MpsDriver:
 
     def _initialize_fixed_mps(self):
         """
-        Initializes the MatrixProductState object with random coefficients.
+        Initializes the MatrixProductState object with fixed coefficients (0.5+0.5i).
 
-        :return mps:
-            Returns a matrix-product state (MPS) with random coefficients.
+        :return:
+            Returns a matrix-product state (MPS) with fixed coefficients. (list of arrays)
         """
         L = self.nr_sites
         d = self.local_dim
@@ -92,7 +88,6 @@ class MpsDriver:
 
         # Left-most matrix (row-vector)
         m_l = 1
-        # m_r = max(1, min(m, d))
         m_r = chi(0)
         A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=np.complex128)
         mps.append(A)
@@ -100,7 +95,6 @@ class MpsDriver:
         # The middle sites (matrices) are built iteratively, taking the shape of the previous sites right dimension for the new left
         for i in range(1, L - 1):
             m_l = mps[-1].shape[2]
-            # m_r = max(1, min(m, d))
             m_r = chi(i)
             A = A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=np.complex128)
             mps.append(A)
@@ -113,70 +107,17 @@ class MpsDriver:
 
         self.mps = mps
 
-    def full_norm(self):
+    def canonical_form(self, center=None, mps=None):
         """
-        Gets the norm of the MPS.
-        """
-        env = np.array([[1.0]])
-        for A in self.mps:
-            env = np.einsum("lL, ldr, LdR -> rR", env, A, A.conjugate())
-
-        return np.sqrt(env.squeeze().real)
-
-    def canonical_norm(self, mps=None):
-        """
-        Gets the norm of the MPS assuming it is in canonical form.
-
-        :return norm:
-            Returns the norm from
-        """
-        if mps is None:
-            mps = self.mps
-        if self.canonical_center is None:
-            raise ValueError("Requires the MPS in canonical form!")
-        # return np.einsum(
-        #    "ldr, ldr",
-        #    self.mps[self.canonical_center],
-        #    self.mps[self.canonical_center].conjugate(),
-        # ).real
-        A = mps[self.canonical_center]
-        return np.sqrt(np.vdot(A, A).real)
-
-    @staticmethod
-    def overlap(mps1, mps2):
-        """
-        Gets the overlap squared of mps1 and mps2.
-        """
-        env = np.array([[1.0]], dtype=complex)
-        if len(mps1) != len(mps2):
-            raise ValueError("The MPSs are of different lengths!!")
-        for i, _ in enumerate(mps1):
-            env = np.einsum("lL, ldr, LdR -> rR", env, mps1[i], mps2[i].conjugate())
-
-        return env.squeeze()
-
-    def normalize(self, mps=None, center=None):
-        """
-        Returns the normalized MPS, assumed being in canonical form.
-        """
-        if mps is None:
-            mps = self.mps
-        if center is None:
-            center = self.canonical_center
-
-        mps[center] /= self.canonical_norm()
-        self.mps[center] = mps[center]
-
-        return self.mps
-
-    def canonical_form(self, center=None, mps=None, schmidt=False):
-        """
-        Puts the mps into canonical form on site 'center' with repeated singular-value decomposition.
+        Puts the MPS into canonical form on site 'center' via repeated singular-value decomposition.
 
         :param center:
-            The site on which the MPS is canoncalized with respect to. (integer)
+            The site on which the MPS is canoncalized with respect to, also known as orthogonality center. (integer)
         :param mps:
-            The mps on which to operate. If mps=None, i.e., no mps is supplied, default to the internal self.mps, otherwise act on the supplied mps
+            The MPS on which to operate. If mps=None, default to the internal self.mps, otherwise act on the supplied MPS. (list of arrays)
+
+        :return:
+            The MPS in canonical form. (list of arrays)
         """
         if center is None and self.canonical_center is not None:
             center = self.canonical_center
@@ -186,9 +127,6 @@ class MpsDriver:
             raise ValueError(
                 "The site to center on must be within the number of sites!"
             )
-
-        if schmidt and center >= self.nr_sites - 1:
-            raise ValueError("Schmidt-centered form requires center <= nr_sites - 2.")
 
         if mps is None:
             self.canonical_center = center
@@ -210,9 +148,9 @@ class MpsDriver:
             The matrix-product state object (list of numpy arrays).
         :param center:
             The SITE-based canonical center.
-        :param schmidt:
-            Performs an additional SVD where the bond between site center and center+1 becomes
-            the center, characterized by the singular values.
+
+        :return:
+            The MPS in canonical form. (list of arrays)
         """
 
         L = len(mps)  # self.nr_sites
@@ -265,9 +203,98 @@ class MpsDriver:
 
         return mps
 
+    def full_norm(self):
+        """
+        Gets the norm of the MPS by fully contracting through the MPS.
+
+        :return:
+            The norm of the MPS (wavefunction). (float)
+        """
+        env = np.array([[1.0]])
+        for A in self.mps:
+            env = np.einsum("lL, ldr, LdR -> rR", env, A, A.conjugate())
+
+        return np.sqrt(env.squeeze().real)
+
+    def canonical_norm(self, mps=None):
+        """
+        Gets the norm of the MPS assuming it is in canonical form.
+
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+
+        :return:
+            The norm of the MPS (wavefunction). (float)
+        """
+        if mps is None:
+            mps = self.mps
+        if self.canonical_center is None:
+            raise ValueError("Requires the MPS in canonical form!")
+        # return np.einsum(
+        #    "ldr, ldr",
+        #    self.mps[self.canonical_center],
+        #    self.mps[self.canonical_center].conjugate(),
+        # ).real
+        A = mps[self.canonical_center]
+        return np.sqrt(np.vdot(A, A).real)
+
+    @staticmethod
+    def overlap(mps1, mps2):
+        """
+        Gets the overlap squared of two MPSs: mps1 and mps2.
+
+        :param mps1:
+            The ket MPS. (list of arrays)
+        :param mps2:
+            The ket MPS. (list of arrays)
+
+        :return:
+            The overlap between mps1 and mps2. (float)
+        """
+        # Environment defined to iteratively contract
+        env = np.array([[1.0]], dtype=complex)
+        if len(mps1) != len(mps2):
+            raise ValueError("The MPSs are of different lengths!!")
+        for i, _ in enumerate(mps1):
+            env = np.einsum("lL, ldr, LdR -> rR", env, mps1[i], mps2[i].conjugate())
+
+        return env.squeeze()
+
+    def normalize(self, mps=None, center=None):
+        """
+        Normalizese the MPS.
+
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+
+        :return:
+            The normalized MPS. (list of arrays)
+        """
+        if mps is None:
+            mps = self.mps
+        if center is None:
+            center = self.canonical_center
+
+        mps[center] /= self.canonical_norm()
+        self.mps[center] = mps[center]
+
+        return self.mps
+
     def left_boundary(self, mpo, mps=None, center=None, mps2=None):
         """
-        Gets the left boundary of the MPS up to the canonical center (assuming MPS is in canonical form).
+        Gets the left environment/boundary of the MPS with MPO up to the canonical center (assuming MPS is in canonical form).
+
+        :param mpo:
+            The matrix-product operator object (list of numpy arrays).
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+        :param mps2:
+            The matrix-product state object 2, defaults to mps if None. (list of numpy arrays)
+        :param center:
+            The canonical center, defaults to the set center if None. (int)
+
+        :return:
+            Left boundary/environment, representing the effectve operator acting on those sites. (list of arrays)
         """
         if mps is None:
             mps = self.mps
@@ -296,7 +323,19 @@ class MpsDriver:
 
     def right_boundary(self, mpo, mps=None, center=None, mps2=None):
         """
-        Gets the right boundary of the MPS up to the canonical center (assuming MPS is in canonical form).
+        Gets the right boundary of the MPS down to the canonical center (assuming MPS is in canonical form).
+
+        :param mpo:
+            The matrix-product operator object (list of numpy arrays).
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+        :param mps2:
+            The matrix-product state object 2, defaults to mps if None. (list of numpy arrays)
+        :param center:
+            The canonical center, defaults to the set center if None. (int)
+
+        :return:
+            Right boundary/environment, representing the effectve operator acting on those sites. (list of arrays)
         """
         if mps is None:
             mps = self.mps
@@ -321,26 +360,60 @@ class MpsDriver:
 
         return right_boundary
 
+    def get_expectation_value(self, mpo, center=None):
+        """
+        Get the expectation value of an operator (given as an MPO).
+
+        :param mpo:
+            The operator as an MPO. (list of arrays)
+        :param center:
+            The canonical center, defaults to the set center if None. (int)
+
+        :return:
+            The expectation value of the MPO. (float)
+        """
+
+        if center is None:
+            center = self.canonical_center
+
+        left_boundary = self.left_boundary(mpo, center=center + 1)
+        right_boundary = self.right_boundary(mpo, center=center)
+
+        # TODO: replace einsum
+        exp_val = np.einsum("ldr, rdl", left_boundary, right_boundary)
+        if np.abs(exp_val.imag) < 1e-14:
+            return exp_val.real
+        else:
+            return exp_val
+
     @staticmethod
     def _get_schmidt_spectrum(mps, center: int):
         """
-        Gets the schmidt spectrum at the bond between site center and center+1
+        Gets the schmidt spectrum of the Schmidt decomposition at the bond between site center and center+1.
+
+        :param mps:
+            The matrix-product state objec. (list of numpy arrays)
+        :param center:
+            Defines the bond at which the decomposition is performed, defined to be between site center and center+1. (int)
+
+        :return:
+            Singular values. (vector/array)
         """
         # care must be taken if thsi method is used outside where it is currently called
         # the center must be the canonical_center of the canonicalized MPS
         m_l, d, m_r = mps[center].shape
         U, S, Vh = np.linalg.svd(mps[center].reshape(m_l * d, m_r), full_matrices=False)
-        # chi = S.shape[0]
-
-        # self.mps[center] = U.reshape(m_l, d, chi)
-
-        # mps_next_site = self.mps[center + 1].copy()
-        # self.mps[l + 1] = np.einsum("lr, rdm -> ldm", Vh, mps_next_site)
         return S
 
     def bipartite_entang_entropy(self, center: int, mps=None):
         """
-        Gets the entanglement entropy at the bond between site center and center+1
+        Gets the entanglement entropy at the bond between site center and center+1, defined as the von Neumann entropy.
+
+        :param center:
+            Defines the bond at which the decomposition is performed, defined to be between site center and center+1. (int)
+
+        :return:
+            Entanglement entropy at the bond between site i (=center) and site i+1 (=center+1). (float)
         """
         if mps is None:
             mps = self.mps
@@ -354,11 +427,15 @@ class MpsDriver:
 
     def get_twosite(self, center=None, mps=None):
         """
-        Docstring for get_twosite
+        Gets the fused twosite tensor from the given MPS, enabling two-site optimization.
 
-        :param self: Description
         :param center:
-            The center. (bool)
+            The center defining the left site of the two-site tensor. (int)
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+
+        :return:
+            The two-site tensor. (array)
         """
         if mps is None:
             mps = self.mps
@@ -387,14 +464,19 @@ class MpsDriver:
 
     def split_twosite(self, theta, direction, mps=None, center=None):
         """
-        Docstring for split_twosite
+        Splits a supplied two-site tensor into two one-site tensors.
 
         :param theta:
             The two-site tensor. (array)
         :param direction:
             The sweep direction. (str)
-        :param truncate:
-            Whether to truncate the SVD to the set self.max_bond_dim. (bool)
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+        :param center:
+            The center defining the left site of the two-site tensor. (int)
+
+        :return:
+            The new center and the MPS.
         """
         l, d1, d2, r = theta.shape
         new_canonical_center = center
@@ -427,23 +509,3 @@ class MpsDriver:
             new_canonical_center = max(center - 1, 0)
 
         return new_canonical_center, mps
-
-    def get_expectation_value(self, mpo, center=None):
-        """
-        Get the expectation value of an operator (given as an MPO).
-
-        :param self: Description
-        """
-
-        if center is None:
-            center = self.canonical_center
-
-        left_boundary = self.left_boundary(mpo, center=center + 1)
-        right_boundary = self.right_boundary(mpo, center=center)
-
-        # TODO: replace einsum
-        exp_val = np.einsum("ldr, rdl", left_boundary, right_boundary)
-        if np.abs(exp_val.imag) < 1e-14:
-            return exp_val.real
-        else:
-            return exp_val

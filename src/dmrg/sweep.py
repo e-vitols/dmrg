@@ -34,13 +34,13 @@ class SweepDriver:
         self.allow_bond_growth = settings.allow_bond_growth
         self.bond_growth_step = settings.bond_growth_step
 
-    def __getattr__(self, name):
-        # try mps first, then mpo
-        if hasattr(self.mps_drv, name):
-            return getattr(self.mps_drv, name)
-        if hasattr(self.mpo_drv, name):
-            return getattr(self.mpo_drv, name)
-        raise AttributeError(name)
+    # def __getattr__(self, name):
+    #    # try mps first, then mpo
+    #    if hasattr(self.mps_drv, name):
+    #        return getattr(self.mps_drv, name)
+    #    if hasattr(self.mpo_drv, name):
+    #        return getattr(self.mpo_drv, name)
+    #    raise AttributeError(name)
 
     def apply_eff_ham(self, L, Wl, Wr, R, X):
         """ """
@@ -58,6 +58,18 @@ class SweepDriver:
 
         return Y
 
+    def _check_isometry_right(self, A):
+        chi, d, r = A.shape
+        M = A.reshape(chi, d * r)
+        err = np.linalg.norm(M @ M.conj().T - np.eye(chi))
+        return err
+
+    def _check_isometry_left(self, A):
+        l, d, chi = A.shape
+        M = A.reshape(l * d, chi)
+        err = np.linalg.norm(M.conj().T @ M - np.eye(chi))
+        return err
+
     def _effective_linop(
         self, mpo, mps, center=None, two_site=True, dtype=np.complex128
     ):
@@ -67,15 +79,15 @@ class SweepDriver:
 
         # dtype is specified since this saves one iteration, as described in scipy documentation
         if center is None:
-            center = self.canonical_center
+            center = self.mps_drv.canonical_center
         if not two_site:
             raise NotImplementedError("Only two-site optimization is enabled.")
 
         left_center = center
         right_center = center + 1
 
-        L = self.left_boundary(mpo, mps=mps, center=left_center)
-        R = self.right_boundary(mpo, mps=mps, center=right_center)
+        L = self.mps_drv.left_boundary(mpo, mps=mps, center=left_center)
+        R = self.mps_drv.right_boundary(mpo, mps=mps, center=right_center)
         Wl = mpo[left_center]
         Wr = mpo[right_center]
 
@@ -89,8 +101,7 @@ class SweepDriver:
 
         def _matvec(x):
             X = x.reshape(shape)
-            Y = self.apply_eff_ham(L, Wl, Wr, R, X)  # returns (Dl, d1_out, d2_out, Dr)
-            # Y = Y.reshape(Dl, Y.shape[1] * Y.shape[2], Dr)
+            Y = self.apply_eff_ham(L, Wl, Wr, R, X)
             return Y.reshape(n)
 
         return LinearOperator((n, n), matvec=_matvec, dtype=dtype), shape
@@ -101,7 +112,7 @@ class SweepDriver:
         if center is None:
             center = self.canonical_center
 
-        P0 = self.get_twosite(center=center, mps=mps)
+        P0 = self.mps_drv.get_twosite(center=center, mps=mps)
         v0 = P0.reshape(-1)
 
         w, v = eigsh(
@@ -126,56 +137,54 @@ class SweepDriver:
         if mps is None:
             mps = self.mps_drv.mps
 
-        self.canonical_form(center=center, mps=mps)
-        mps = self.normalize(mps=mps, center=center)
+        self.mps_drv.canonical_form(center=center, mps=mps)
+        mps = self.mps_drv.normalize(mps=mps, center=center)
         self.mps_drv.mps = mps
         nr_bonds = len(mps) - 1
 
-        self.E_0 = 0
+        self.E_0 = 1e8
         self.converged = False
 
         for sweep in range(self.nr_sweeps):
-            print(f"Sweep nr. {sweep+1}")
+            print(f"Sweep: {sweep+1}")
 
             R_trunc_error = np.zeros(nr_bonds, dtype=float)
             # right-sweep
             for cen in range(nr_bonds):
-                # E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
                 E, theta = self.solve_local_two_site(mpo, mps, center=cen)
-                # E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
                 _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
-                # _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
 
+                # err_iso = self._check_isometry_left(mps[_center])
+                # if abs(err_iso) > 1e-6:
+                #    print(f'ISOMETRY warning: {err_iso}')
                 R_trunc_error[cen] = self.mps_drv.discarded_weight
+
                 self.mps_drv.mps = mps
                 self.mps_drv.canonical_center = _center
-                self.mpo_drv.canonical_center = _center
                 self.canonical_center = _center
 
             E_rsweep = self.mps_drv.get_expectation_value(mpo, center=cen)
             print(
-                f"Energy after right sweep : {E_rsweep:.6f} a.u.\n"
+                f"Energy after right sweep: {E_rsweep:.6f} a.u.\n"
                 f"Discarded weight: max = {R_trunc_error.max():.3e}, mean = {R_trunc_error.mean():.3e} (worst bond: {int(R_trunc_error.argmax())})\n"
             )
 
             L_trunc_error = np.zeros(nr_bonds, dtype=float)
             # left-sweep
             for cen in range(nr_bonds - 1, -1, -1):
-                # E, theta = self.solve_local_two_site(mpo, self.mps_drv.mps, center=cen)
                 E, theta = self.solve_local_two_site(mpo, mps, center=cen)
                 _center, mps = self.mps_drv.split_twosite(theta, "left", center=cen)
 
+                # err_iso = self._check_isometry_right(mps[_center])
+                # if abs(err_iso) > 1e-6:
+                #    print(f'ISOMETRY warning: {err_iso}')
                 L_trunc_error[cen] = self.mps_drv.discarded_weight
+
                 self.mps_drv.mps = mps
-                # self.mps_drv.canonical_center = cen
-                # self.mpo_drv.canonical_center = cen
-                # self.canonical_center = cen
                 self.mps_drv.canonical_center = _center
-                self.mpo_drv.canonical_center = _center
                 self.canonical_center = _center
 
             L_trunc_max = L_trunc_error.max()
-            # E_lsweep = self.mps_drv.get_expectation_value(mpo, center=cen)
             E_lsweep = self.mps_drv.get_expectation_value(mpo, center=_center)
 
             print(
@@ -185,9 +194,9 @@ class SweepDriver:
 
             if allow_bond_growth and (L_trunc_max > trunc_conv_thr):
                 print(
-                    f"**OBS** Large truncation error: Maximum bond dimension increased from {self.mps_drv.max_bond_dim} to {self.mps_drv.max_bond_dim+2}"
+                    f"**OBS** Large truncation error: Maximum bond dimension increased from {self.mps_drv.max_bond_dim} to {self.mps_drv.max_bond_dim+2}\n"
                 )
-                self.mps_drv.max_bond_dim += 2
+                self.mps_drv.max_bond_dim += self.bond_growth_step
             elif L_trunc_max > trunc_conv_thr:
                 print(
                     f"**OBS** Large truncation error! Allowing for bond dimension growth is advised.\n"
