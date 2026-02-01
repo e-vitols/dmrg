@@ -3,11 +3,8 @@ import copy
 import numpy as np
 from scipy.sparse.linalg import LinearOperator, eigsh
 
-from .hamiltonian import HamiltonianDriver
 from .mpo import MpoDriver
 from .mps import MpsDriver
-
-# import veloxchem as vlx
 
 
 class SweepDriver:

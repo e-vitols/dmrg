@@ -1,11 +1,9 @@
 import numpy as np
 
-# import dmrg
-
 
 class OperatorDriver:
     """
-    Implements the local operators and operator strings, in the local basis {|0>, |up>, |down>, |up down>}.
+    Implements the local operators and operator strings, in the local basis {|0>, |up>, |down>, |up down>}. These are then taken as input to the MpoDriver and transforemd into MPOs.
 
     Instance variables:
         - local_dim: Local dimension of the sites (only uniform is allowed), i.e., if local_dim = 4, 4 allowed occupations of the site: 0, up/alpha, down/beta, or alpha+beta. (int)
@@ -205,7 +203,7 @@ class OperatorDriver:
         Returns (opstrings, coeffs) for sum_i n_up/down(i), i.e., the number operator.
 
         :spin:
-            The spin of both operators. (str)
+            The spin of the operator. (str)
         """
         L = self.nr_sites
         I = self.identity_local()
@@ -229,7 +227,14 @@ class OperatorDriver:
         """
         Returns (opstrings, coeffs) for:
           U * sum_i n_up(i) n_dn(i)  - mu * sum_i (n_up(i)+n_dn(i))
-          - t * sum_{<i,i+1>,sigma} (c_i^† c_{i+1} + c_{i+1}^† c_i)
+          - t * sum_{<i,i+1>,sigma} (cd_i c_{i+1} + cd_{i+1} c_i)
+
+        :param t:
+            The kinetic/hopping parameter. (float)
+        :param U:
+            The Hubbard U parameter, modeling on-site repulsion. (float)
+        :param mu:
+            The chemical potential parameter, only implemented way of keeping fixed particle number. (float)
 
         """
         L = self.nr_sites

@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-import numpy as np
-
 # To have consistennt settings across classes that use these
 
 
