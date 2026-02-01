@@ -6,7 +6,9 @@ import dmrg
 
 class TestBoundary:
     def test_left_right_mixed_boundary(self, m_bonddim=8, nr_sites=6):
-        # TODO: separate into a different test per assertion
+        """
+        Test that the left- and right boundaries are implemented correctly.
+        """
         settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)

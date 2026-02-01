@@ -40,7 +40,7 @@ class TestJordanWigner:
         self, local_dim=4, m_bonddim=8, nr_sites=6, site=3, spin="up", creation=True
     ):
         """
-        Test that operators obey the standard commutation relations.
+        Test that operators obey the standard (anti)commutation relations.
         """
         settings = dmrg.Settings(
             nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
@@ -89,8 +89,7 @@ class TestJordanWigner:
         Test the antisymmetry, i.e., that creating/annihilating a fermion twice in the same
         state collapses the MPS.
         """
-        # TODO: remove this, or double-check that thiis doesn't make sense
-        # for the zero-vector/mps, as then the canonical form is not well-defined
+
         settings = dmrg.Settings(
             nr_sites=nr_sites, local_dim=local_dim, max_bond_dim=m_bonddim
         )

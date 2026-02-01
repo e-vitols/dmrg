@@ -7,7 +7,6 @@ import dmrg
 
 class TestOperator:
     def test_num_and_basic_ops(self, m_bonddim=8, nr_sites=6):
-        # TODO: separate into a different test per assertion
         settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)

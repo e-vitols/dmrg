@@ -15,3 +15,5 @@ dependencies:
   - veloxchem
   - dftd4-python
   - xtb
+  - pytest
+  - pybind11
