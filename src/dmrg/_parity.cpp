@@ -16,8 +16,8 @@ static py::array_t<double> parity_local(int local_dim = 4) {
     auto a = arr.mutable_unchecked<2>();
 
     // zero fill
-    for (ssize_t i = 0; i < 4; ++i)
-        for (ssize_t j = 0; j < 4; ++j)
+    for (py::ssize_t i = 0; i < 4; ++i)
+        for (py::ssize_t j = 0; j < 4; ++j)
             a(i, j) = 0.0;
 
     a(0, 0) =  1.0;
