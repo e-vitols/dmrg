@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A DMRG solver interfaced to VeloxChem."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["numpy", "h5py", "scipy"]
+dependencies = ["numpy", "h5py", "scipy", "pybind11>=2.11"]
 authors = [
     {name = "Erik Vitols", email = "evitols@kth.se"},
 ]
@@ -12,7 +12,7 @@ license = {file = "LICENSE"}
 
 
 [build-system]
-requires = ["setuptools >= 77.0.3"]
+requires = ["setuptools >= 77.0.3", "numpy", "wheel", "pybind11>=2.11"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]

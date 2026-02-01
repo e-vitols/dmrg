@@ -1,5 +1,7 @@
 import numpy as np
 
+from . import _parity as _parity
+
 
 class OperatorDriver:
     """
@@ -61,6 +63,16 @@ class OperatorDriver:
 
     @staticmethod
     def parity_local(local_dim=4):  # or nr_qbits
+        """
+        Constructs the matrix representation, in the basis {|0>, |up>, |down>, |up down>}, necessary for imposing fermionic anticommutation relations via the Jordan-Wigner transformation.
+
+        :returns:
+            The (4,4) dimensional matrix representation as a numpy array.
+        """
+        return _parity.parity_local(local_dim)
+
+    @staticmethod
+    def _parity_local(local_dim=4):  # or nr_qbits
         """
         Constructs the matrix representation, in the basis {|0>, |up>, |down>, |up down>}, necessary for imposing fermionic anticommutation relations via the Jordan-Wigner transformation.
 
