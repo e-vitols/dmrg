@@ -1,6 +1,6 @@
-# VLX-DMRG
+# vlx-dmrg
 
-**VLX-DMRG** is a DMRG solver in the MPO formalism that uses VeloxChem (VLX) as the backend for SCF/MOs and integral construction to assemble the Hamiltonian. The initial release aims to serve as a minimal, didactic example.
+**vlx-dmrg** is a DMRG solver in the MPO formalism that uses VeloxChem (VLX) as the backend for SCF/MOs and integral construction to assemble the Hamiltonian. The initial release aims to serve as a minimal, didactic example.
 
 <br>
 <br>
@@ -14,11 +14,11 @@
 
 **Dependencies**
 
-The dependencies of **DMRG-VLX** are the same as that for [VeloxChem][VeloxChem], but are nonetheless given below:
+The dependencies of **vlx-dmrg** are the same as that for [VeloxChem][VeloxChem], but are nonetheless given below:
 * [CMake]
 * [NumPy]
 * [Eigen]
-* [Python] ($`\geq`$ 3.9)
+* [Python] ($`\geq`$ 3.10)
 * C++ compiler supporting the C++20 standard and OpenMP
 * [scikit-build]
 * [Libxc] (due to requirement of VLX)
@@ -27,7 +27,7 @@ The dependencies of **DMRG-VLX** are the same as that for [VeloxChem][VeloxChem]
 
 For installation of VeloxChem and associated dependencies please follow the guide at: [VeloxChem installation]
 
-Assuming that the VLX installation was succesful, you should now have a virtual environment (strongly suggested) with the name ```vlxenv``` (or whatever name chosen). The following steps should be taken for installing the DMRG part of VLX-DMRG.
+Assuming that the VLX installation was succesful, you should now have a virtual environment (strongly suggested) with the name ```vlxenv``` (or whatever name chosen). The following steps should be taken for installing the DMRG part of vlx-dmrg.
 
 1. Clone the repository: ```git clone https://github.com/e-vitols/dmrg.git```
 2. ```cd dmrg```
