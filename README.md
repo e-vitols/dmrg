@@ -38,8 +38,8 @@ Assuming that the VLX installation was succesful, you should now have a virtual 
 
 **Note:** only the DMRG solver is implemented, i.e., only the configuration parameters are optimized, there is **no** orbital optimization.
 
-* Ground state
-* Excited states through the shift-and-invert (S&I) and with the folded operator as auxiliary operators.
+* Ground state optimization
+* Implemented Hamiltonians: electronic and Hubbard
 
 
 ## Background

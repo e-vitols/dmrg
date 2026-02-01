@@ -1,17 +1,25 @@
 [project]
-name = "dmrg"
-version = "0.0.1"
+name = "vlx-dmrg"
+version = "0.1.0"
 description = "A DMRG solver interfaced to VeloxChem."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["h5py", "scipy"]
+dependencies = ["numpy", "h5py", "scipy"]
 authors = [
     {name = "Erik Vitols", email = "evitols@kth.se"},
 ]
+license = {file = "LICENSE"}
+
 
 [build-system]
 requires = ["setuptools >= 77.0.3"]
 build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
 
 [tool.setuptools.packages.find]
 where = ["src"]
