@@ -4,13 +4,39 @@ import veloxchem as vlx
 
 class IntegralsDriver:
     """
+    The IntegralsDriver object interfacing the program to VeloxChem for obtaininng integrals and molecular orbital (MO) coefficients.
+
     NOTE: this class is responsible for mainly interafacing with VLX
+
+    Instance variables:
+        - one_elec_ints_ao: The one-electron integrals in the atomic-orbital basis. (arary)
+        - two_elec_ints_ao: The two-electron integrals in the atomic-orbital basis. (arary)
+        - overlap: The overlap integrals in the atomic-orbital basis. (arary)
+        - nuc_repulsion_energy: the nuclear repulsion energy. (float)
     """
 
     def __init__(self):
-        self.orbitals = None
+        """
+        Initializes the IntegralsDriver object.
+        """
+        self.one_elec_ints_ao = None
+        self.two_elec_ints_ao = None
+        self.overlap = None
+        self.nuc_repulsion_energy = None
 
     def get_ints(self, molecule, basis):
+        """
+        Computes the integrals by interfacing to VeloxChem (VLX).
+
+        :param molecule:
+            The VLX molecule object.
+        :param:
+            The VLX basis object.
+
+        :return:
+            The overlap integrals (array), core hamiltonian integrals (array), two-electron integrals (array), and the nuclear repulsion energy (float).
+        """
+
         V_nuc = molecule.nuclear_repulsion_energy()
         overlap_drv = vlx.OverlapDriver()
         S = overlap_drv.compute(molecule, basis).to_numpy()
@@ -50,9 +76,9 @@ class IntegralsDriver:
     @staticmethod
     def permute_integrals(t_ij, v_ijkl, perm):
         """
-        simpler to just permute the MOs
+        Simpler to just permute the MOs
         """
-        perm = np.asarray(perm, dtype=int)
+        perm = np.asarray(perm)
         t_p = t_ij[np.ix_(perm, perm)]
         v_p = v_ijkl[np.ix_(perm, perm, perm, perm)]
         return t_p, v_p
@@ -62,7 +88,7 @@ class IntegralsDriver:
         Transform the AO-basis integrals to MO-basis.
 
         :param scf_results:
-            The converged SCF tensors from a VeloxChem SCF
+            The converged SCF tensors from a VeloxChem SCF calculation.
 
         :return:
             Returns the transformed one- and two-electron integrals in MO-basis.

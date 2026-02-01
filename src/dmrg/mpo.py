@@ -29,7 +29,7 @@ class MpoDriver:
         Initializes the MatrixProductOperator driver.
 
         :param settings:
-            Sets the instance variables of the class.
+            Sets some of the standard instance variables of the class.
         """
         self.settings = settings
         self.ops_drv = OperatorDriver(settings)
@@ -333,7 +333,7 @@ class MpoDriver:
         Docstring for get_twosite
 
         :param mpo:
-            The full MPO.
+            The full MPO. (list of arrays)
         :param center:
             The center. (bool)
 
@@ -397,9 +397,9 @@ class MpoDriver:
         Constructs the full electronic Hamiltonian as an MPO, in a 'naive' way.
 
         :param t_ij:
-            The one-electron integrals in MO-basis.
+            The one-electron integrals in MO-basis. (array)
         :param v_ijkl:
-            The two-electron integrals in MO-basis.
+            The two-electron integrals in MO-basis. (array)
 
         :return:
             The electronic Hamiltonian as an MPO.
@@ -462,95 +462,20 @@ class MpoDriver:
 
         return W_full
 
-    def old_apply_effective_matvec(self, mpo, mps=None, center=None, two_site=True):
-        """
-        Docstring for get_effective_op
-
-        :param mpo:
-            The MPO of which we get the effective one. (list of arrays)
-        :param center:
-            The center at which we get the effective operator, i.e., centered at the bond between site center and center+1. (int)
-        :param two_site:
-            Whether to generate the effective two-site (True) or one-site (False). (bool)
-        """
-        if center is None:
-            center = self.canonical_center
-
-        left_center = center
-        right_center = center + 1
-
-        left_boundary = self.left_boundary(mpo, mps=mps, center=left_center)
-        right_boundary = self.right_boundary(mpo, mps=mps, center=right_center)
-
-        if mps is not None:
-            P = self.get_twosite(center=center, mps=mps)
-
-        tmp = np.einsum(
-            "abcd, bBCD -> aBcCdD", mpo[left_center], mpo[right_center], optimize=True
-        )
-        l, r, d = tmp.shape[0], tmp.shape[1], tmp.shape[2]
-        W2 = tmp.reshape(l, r, d**2, d**2)
-
-        matvec = np.einsum(
-            "bcTt, Lbd, dte, ecR -> LTR",
-            W2,
-            left_boundary,
-            P,
-            right_boundary,
-            optimize=True,
-        )
-
-        return matvec
-
-    def _apply_effective_ham_currsite(self, mpo, mps=None, center=None, two_site=True):
-        """
-        Docstring for get_effective_op
-        NOTE: Included for bugfixing purposes
-        NOTE: this avoids forming the two-site MPO intermediate.
-
-        :param mpo:
-            The MPO of which we get the effective one. (list of arrays)
-        :param center:
-            The center at which we get the effective operator, i.e., centered at the bond between site center and center+1. (int)
-        :param two_site:
-            Whether to generate the effective two-site (True) or one-site (False). (bool)
-        """
-        if center is None:
-            center = self.canonical_center
-
-        left_center = center
-        right_center = center + 1
-
-        L = self.left_boundary(mpo, mps=mps, center=left_center)
-        R = self.right_boundary(mpo, mps=mps, center=right_center)
-
-        if mps is not None:
-            P = self.get_twosite(center=center, mps=mps)
-
-        D = mpo[left_center].shape[3]
-        E = mpo[right_center].shape[3]
-        P = P.reshape(P.shape[0], D, E, P.shape[2])
-        # avoid explicit W2 construction: contract mpo[left_center] and mpo[right_center] on the fly instead
-        matvec = np.einsum(
-            "bmSA, mcTB, Lbd, dABe, ecR -> LSTR",
-            mpo[left_center],
-            mpo[right_center],
-            L,
-            P,
-            R,
-            optimize=True,
-        )
-
-        matvec = matvec.reshape(
-            matvec.shape[0], matvec.shape[1] * matvec.shape[2], matvec.shape[3]
-        )
-
-        return matvec
-
     def hubbard_mpo_naive(self, t=1.0, U=0.0, mu=0.0):
         """
-        Implements the Hubbard Hamiltonian, including chemical potential, as an MPO built naively.
-        NOTE this seems faster than fixed bon ddim for ~few sites
+        Implements the Hubbard Hamiltonian, including chemical potential, as an MPO, built naively.
+        NOTE this seems faster than fixed bon ddim for ~few sites.
+
+        :param t:
+            The kinetic/hopping parameter. (float)
+        :param U:
+            The Hubbard U parameter, modeling on-site repulsion. (float)
+        :param mu:
+            The chemical potential parameter, only implemented way of keeping fixed particle number. (float)
+
+        :return:
+            The Hubbard Hamiltonian operator as an MPO. (list of arrays)
         """
         opstrings, coeffs = self.ops_drv.hubbard_opstrings(t=t, U=U, mu=mu)
         return self.mpo_from_opstrings(opstrings, coeffs)
@@ -559,6 +484,16 @@ class MpoDriver:
         """
         Implements the Hubbard Hamiltonian, including chemical potential, as an MPO built with fixed bond dimension -- independent of nr of sites.
         NOTE this seems slower than the naive MPO for ~few sites
+
+        :param t:
+            The kinetic/hopping parameter. (float)
+        :param U:
+            The Hubbard U parameter, modeling on-site repulsion. (float)
+        :param mu:
+            The chemical potential parameter, only implemented way of keeping fixed particle number. (float)
+
+        :return:
+            The Hubbard Hamiltonian operator as an MPO. (list of arrays)
         """
         L = self.nr_sites
         d = self.local_dim
@@ -633,6 +568,12 @@ class MpoDriver:
     def site_occ_mpo(self, site):
         """
         Get the site occupation number operator.
+
+        :param site:
+            The site at which the occupation operator is applied.
+
+        :return:
+            The local site occupation operator as an MPO.
         """
         local_up_op = self.ops_drv.number_local("up")
         local_dn_op = self.ops_drv.number_local("down")
@@ -647,7 +588,15 @@ class MpoDriver:
 
     def one_rdm(self, mps_drv):
         """
-        The 1-RDM matrix.
+        The one-particle reduced density matrix (1RDM) matrix.
+
+        TODO make it not need mps_drv as input.
+
+        :param mps_drv:
+            The current/active MpsDriver object.
+
+        :return:
+            The one-particle reduced density matrix. (array)
         """
         L = self.nr_sites
         gamma_pq = np.zeros((L, L))

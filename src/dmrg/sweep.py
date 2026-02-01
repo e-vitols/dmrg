@@ -11,8 +11,25 @@ from .mps import MpsDriver
 
 
 class SweepDriver:
-    # def __init__(self):
+    """
+    Implements the SweepDriver that handles the core DMRG algorithm for variational minimization through sweeping.
+
+    Instance variables:
+        - mps_drv: The MpsDriver object.
+        - mpo_drv: The MpoDriver object.
+        - nr_sweeps: The number of full sweeps to allow (left+right = 1 full sweep). (int)
+        - nr_sites: The size of the system -- number of sites/orbitals. (int)
+        - max_bond_dim: The maximum bond-dimension allowed. (int)
+        - svd_tolerance: The tolerance for discarding singular values in SVD. (float)
+        - eig_tolerance: The tolerance for the Lanczos solver. (float)
+        - allow_bond_growth: Whether to allow the bond dimension to grow during sweeping if the truncation errors are too large with the given bon dimension. (bool)
+        - bond_growth_step: How much the bond dimension grows if allow_bond_Growth is True, at each sweep, default is 2. (int)
+    """
+
     def __init__(self, settings, mps_drv=None, mpo_drv=None):
+        """
+        Initializes the SweepDriver.
+        """
         if mps_drv is not None:
             self.mps_drv = mps_drv
         else:
@@ -34,16 +51,24 @@ class SweepDriver:
         self.allow_bond_growth = settings.allow_bond_growth
         self.bond_growth_step = settings.bond_growth_step
 
-    # def __getattr__(self, name):
-    #    # try mps first, then mpo
-    #    if hasattr(self.mps_drv, name):
-    #        return getattr(self.mps_drv, name)
-    #    if hasattr(self.mpo_drv, name):
-    #        return getattr(self.mpo_drv, name)
-    #    raise AttributeError(name)
-
     def apply_eff_ham(self, L, Wl, Wr, R, X):
-        """ """
+        """
+        Applies the effective Hamiltonian from contracted left- and right eenvironments.
+
+        :param L:
+            The left environment. (array)
+        :param Wl:
+            The left MPO. (array)
+        :param Wr:
+            The right MPO. (array)
+        :param R:
+            The right environment. (array)
+        :param X:
+            The vector on which it is applied. (array)
+
+        :return:
+            The resulting vector. (array)
+        """
         Y = np.einsum(
             "bmSA, mcTB, Lbd, dABe, ecR -> LSTR",
             Wl,
@@ -59,12 +84,14 @@ class SweepDriver:
         return Y
 
     def _check_isometry_right(self, A):
+        # for debugging
         chi, d, r = A.shape
         M = A.reshape(chi, d * r)
         err = np.linalg.norm(M @ M.conj().T - np.eye(chi))
         return err
 
     def _check_isometry_left(self, A):
+        # for debugging
         l, d, chi = A.shape
         M = A.reshape(l * d, chi)
         err = np.linalg.norm(M.conj().T @ M - np.eye(chi))
@@ -74,7 +101,21 @@ class SweepDriver:
         self, mpo, mps, center=None, two_site=True, dtype=np.complex128
     ):
         """
-        The mapping/linear operator that applies the
+        The mapping/linear operator used in the Lanczos solver.
+
+        :param mpo:
+            The matrix-product operator object (list of numpy arrays).
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+        :center:
+            The current canonical center. (int)
+        :two_site:
+            Whether to run two-site optimization (recommended, and the only currently implemented). (bool)
+        :dtype:
+            The datatype.
+
+        :return:
+            The effective operator for the eigensolver.
         """
 
         # dtype is specified since this saves one iteration, as described in scipy documentation
@@ -107,6 +148,19 @@ class SweepDriver:
         return LinearOperator((n, n), matvec=_matvec, dtype=dtype), shape
 
     def solve_local_two_site(self, mpo, mps, center=None, maxiter=None):
+        """
+        Solve the local (two-site) eigenproblem.
+
+        :param mpo:
+            The matrix-product operator object. (list of numpy arrays)
+        :param mps:
+            The matrix-product state object. (list of numpy arrays)
+        :center:
+            The current canonical center. (int)
+
+        :return:
+            The lowest (algebraically sorted) eigenvalue (float) and corresponding eigenvector (array) (two-site).
+        """
         Aop, shape = self._effective_linop(mpo, mps, center=center, two_site=True)
 
         if center is None:
@@ -132,7 +186,23 @@ class SweepDriver:
         allow_bond_growth=True,
     ):
         """
-        Starts with left-to-right sweep
+        Implements the DMRG variational sweeping, to find the ground state of given operator as an MPO.
+
+        :param mpo:
+            The matrix-product operator object. (list of numpy arrays)
+        :param mps:
+            The matrix-product state object. (list of numpy arrays)
+        :param center:
+            The canonical center defaults to 0 as the sweep starts to the right. (int)
+        :param ene_conv_thr:
+            The convergence threshold for the energy between successive sweeps.
+        :param trunc_conv_thr:
+            The convergence threshold for the truncation errror between successive sweeps.
+        :param allow_bond_growth:
+            Whether to allow the bond dimension to grow during sweeps, if the truncation errors are too large with the given bond dimension. (bool)
+
+        :return:
+            The ground state energy and eigenvector.
         """
         if mps is None:
             mps = self.mps_drv.mps
