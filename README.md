@@ -25,9 +25,46 @@ The dependencies of **vlx-dmrg** are the same as that for [VeloxChem][VeloxChem]
 
 **Installation**
 
-1. Clone the repository: ```git clone https://github.com/e-vitols/dmrg.git```
-2. ```cd dmrg```
-3. ```pip install .```
+We highly recommend that you install vlx-dmrg in a conda environment.
+If you don't already have conda, install [Miniconda](https://www.anaconda.com/download/success) 
+following the [instructions](https://www.anaconda.com/docs/getting-started/miniconda/install) for your operating system. 
+Once you have miniconda, create a new conda environment using the [myenv.yml](https://drive.google.com/file/d/1e44vjI2q-3aW41ChRvum1KCcGCevo2tf/view?usp=sharing) file.
+In a terminal (or Anaconda Powershell prompt for Windows), run:
+
+```
+conda env create -f vlxdmrg_env.yml
+```
+
+Activate the conda environment:
+
+```
+conda activate vlxdmrgenv
+```
+
+Clone the repository with:
+
+```
+git clone https://github.com/e-vitols/dmrg.git
+```
+
+or
+
+```
+git clone git@github.com:e-vitols/dmrg.git
+```
+
+Pip install the package:
+
+```
+cd dmrg
+python3 -m pip install .
+```
+
+
+## Documentation
+
+To build the documentation jupyter book (assuming you are in the dmrg directory)
+
 
 
 ## Features

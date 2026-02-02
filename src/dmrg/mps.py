@@ -425,6 +425,25 @@ class MpsDriver:
         ent_entropy = -1.0 * np.sum(lam * np.log2(lam))
         return ent_entropy
 
+    def single_orbital_entropy(self, i):
+        """
+        Gets the single orbital entropy of site/orbital i.
+
+        :param i:
+            The site/orbital.
+
+        :return:
+            The single site/orbital entanglement entropy.
+        """
+        self.canonical_form(i)
+        A = self.mps[i]
+
+        rho = np.einsum("lar, lbr->ab", A, A.conj())
+        rho /= np.trace(rho).real
+
+        p = np.linalg.eigvalsh(rho).real
+        return -np.sum(p * np.log2(p))
+
     def get_twosite(self, center=None, mps=None):
         """
         Gets the fused twosite tensor from the given MPS, enabling two-site optimization.
