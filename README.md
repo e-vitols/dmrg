@@ -60,6 +60,19 @@ cd dmrg
 python3 -m pip install .
 ```
 
+## Testing
+
+After successful installation it is recommended you run the tests:
+
+```
+python3 -m pytest tests -m "not slow" 
+```
+
+The above runs only the fast tests, if you wish to run only the slower ones then do:
+
+```
+python3 -m pytest tests -m "slow" 
+```
 
 ## Documentation
 
