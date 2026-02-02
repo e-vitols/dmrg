@@ -14,8 +14,13 @@
 
 **Note:** only the DMRG solver is implemented, i.e., only the configuration parameters are optimized, there is **no** orbital optimization and no active-space selection currently.
 
-* Ground state optimization
-* Implemented Hamiltonians: electronic and Hubbard
+* Ground state optimization,
+* Implemented Hamiltonians: electronic and Hubbard, but the framework for constructing general operators as MPOs is in place.
+
+### Planned features
+
+* Symmetries: U(1) and SU(2) (particle number and spin),
+* Excited-state calculations through the correction-vector approach.
 
 ## Known issues
 
