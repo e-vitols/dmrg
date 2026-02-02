@@ -19,7 +19,8 @@ project:
     - file: README.md
     - file: install.md
     - file: h2-example.ipynb
-    - file: hubbard_ground_state.ipynb    
+    - file: hubbard_ground_state.ipynb
+    - file: longer_example.ipynb 
 site:
   template: book-theme
   # options:
