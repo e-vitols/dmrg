@@ -21,13 +21,9 @@ The dependencies of **vlx-dmrg** are the same as that for [VeloxChem][VeloxChem]
 * [Python] ($`\geq`$ 3.10)
 * C++ compiler supporting the C++20 standard and OpenMP
 * [scikit-build]
-* [Libxc] (due to requirement of VLX)
+* [Libxc]
 
 **Installation**
-
-For installation of VeloxChem and associated dependencies please follow the guide at: [VeloxChem installation]
-
-Assuming that the VLX installation was succesful, you should now have a virtual environment (strongly suggested) with the name ```vlxenv``` (or whatever name chosen). The following steps should be taken for installing the DMRG part of vlx-dmrg.
 
 1. Clone the repository: ```git clone https://github.com/e-vitols/dmrg.git```
 2. ```cd dmrg```
@@ -36,11 +32,10 @@ Assuming that the VLX installation was succesful, you should now have a virtual 
 
 ## Features
 
-**Note:** only the DMRG solver is implemented, i.e., only the configuration parameters are optimized, there is **no** orbital optimization.
+**Note:** only the DMRG solver is implemented, i.e., only the configuration parameters are optimized, there is **no** orbital optimization and no active-space selection currently.
 
 * Ground state optimization
 * Implemented Hamiltonians: electronic and Hubbard
-
 
 ## Background
 The wavefunction ansatz in the DMRG algorithm is that of a **matrix product state (MPS)**. The full configuration interaction (FCI) wavefunction can be written in terms of an MPS as:
