@@ -11,7 +11,7 @@ class TestCanonicalize:
         )
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_random_mps()
+        mps_drv.initialize_random_mps()
         mps_drv.canonical_form(5)
         orthonorm = np.einsum(
             "ldr, ldR -> rR", mps_drv.mps[0], mps_drv.mps[0].conjugate()
@@ -26,7 +26,7 @@ class TestCanonicalize:
         )
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_random_mps()
+        mps_drv.initialize_random_mps()
         norm_before = mps_drv.full_norm()
 
         for center in range(nr_sites):
@@ -60,7 +60,7 @@ class TestCanonicalize:
         )
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_random_mps()
+        mps_drv.initialize_random_mps()
         mps_drv.canonical_form(2)
         mps_drv.normalize()
 

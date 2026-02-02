@@ -23,7 +23,7 @@ class TestJordanWigner:
         mps_drv = dmrg.MpsDriver(settings)
         op_drv = dmrg.OperatorDriver(settings)
 
-        mps_drv._initialize_random_mps()
+        mps_drv.initialize_random_mps()
         mps_drv.canonical_form(0)
         mps = mps_drv.mps
 
@@ -53,7 +53,7 @@ class TestJordanWigner:
             for site2 in range(site1, nr_sites):
                 for spin in ["up", "down"]:
                     for creation in [True, False]:
-                        mps_drv._initialize_random_mps()
+                        mps_drv.initialize_random_mps()
 
                         mps1 = mps_drv.mps
                         mps2 = mps1.copy()
@@ -97,7 +97,7 @@ class TestJordanWigner:
         mpo_drv = dmrg.MpoDriver(settings)
         op_drv = dmrg.OperatorDriver(settings)
 
-        mps_drv._initialize_random_mps()
+        mps_drv.initialize_random_mps()
         mps_drv.canonical_form(canonical_center)
         mps = mps_drv.mps
 

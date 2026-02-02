@@ -11,7 +11,7 @@ class TestOperator:
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_fixed_mps()
+        mps_drv.initialize_fixed_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 
@@ -29,7 +29,7 @@ class TestOperator:
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_fixed_mps()
+        mps_drv.initialize_fixed_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 

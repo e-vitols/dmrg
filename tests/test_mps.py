@@ -13,7 +13,7 @@ class TestMps:
         )
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_fixed_mps()
+        mps_drv.initialize_fixed_mps()
         mps = mps_drv.mps
         assert len(mps) == nr_sites
 

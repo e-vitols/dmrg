@@ -13,7 +13,7 @@ class TestBoundary:
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_random_mps()
+        mps_drv.initialize_random_mps()
         mps_drv.canonical_form(5)
         mps_drv.normalize()
 

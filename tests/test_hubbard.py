@@ -19,7 +19,7 @@ class TestHubbardHamiltonian:
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_random_mps()
+        mps_drv.initialize_random_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 
@@ -43,7 +43,7 @@ class TestHubbardHamiltonian:
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_random_mps()
+        mps_drv.initialize_random_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 
@@ -68,7 +68,7 @@ class TestHubbardHamiltonian:
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv._initialize_random_mps()
+        mps_drv.initialize_random_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 

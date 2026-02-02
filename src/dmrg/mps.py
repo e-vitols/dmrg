@@ -33,7 +33,7 @@ class MpsDriver:
         self.schmidt_spectrum = None
         self.discarded_weight = None
 
-    def _initialize_random_mps(self):
+    def initialize_random_mps(self):
         """
         Initializes the MatrixProductState object with random coefficients.
 
@@ -70,7 +70,7 @@ class MpsDriver:
 
         self.mps = mps
 
-    def _initialize_fixed_mps(self):
+    def initialize_fixed_mps(self):
         """
         Initializes the MatrixProductState object with fixed coefficients (0.5+0.5i).
 
@@ -134,7 +134,7 @@ class MpsDriver:
                 raise ValueError("MPS is not initialized!")
 
             self.mps = self._canonicalize(self.mps, center)
-            self.schmidt_spectrum = self._get_schmidt_spectrum(self.mps, center)
+            self.schmidt_spectrum = self.get_schmidt_spectrum(self.mps, center)
             return self.mps
         else:
             return self._canonicalize(mps, center)
@@ -387,7 +387,7 @@ class MpsDriver:
             return exp_val
 
     @staticmethod
-    def _get_schmidt_spectrum(mps, center: int):
+    def get_schmidt_spectrum(mps, center: int):
         """
         Gets the schmidt spectrum of the Schmidt decomposition at the bond between site center and center+1.
 
