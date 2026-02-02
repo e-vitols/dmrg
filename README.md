@@ -65,7 +65,11 @@ python3 -m pip install .
 
 To build the documentation jupyter book (assuming you are in the dmrg directory)
 
+```
+jupyter book build
 
+jupyter book start
+```
 
 ## Features
 
