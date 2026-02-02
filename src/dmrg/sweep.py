@@ -180,7 +180,7 @@ class SweepDriver:
         center=0,
         ene_conv_thr=1e-6,
         trunc_conv_thr=1e-8,
-        allow_bond_growth=True,
+        allow_bond_growth=None,
     ):
         """
         Implements the DMRG variational sweeping, to find the ground state of given operator as an MPO.
@@ -203,6 +203,8 @@ class SweepDriver:
         """
         if mps is None:
             mps = self.mps_drv.mps
+        if allow_bond_growth is None:
+            allow_bond_growth = self.allow_bond_growth
 
         self.mps_drv.canonical_form(center=center, mps=mps)
         mps = self.mps_drv.normalize(mps=mps, center=center)

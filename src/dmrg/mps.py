@@ -25,7 +25,7 @@ class MpsDriver:
 
         self.nr_sites = settings.nr_sites
         self.max_bond_dim = settings.max_bond_dim
-        self.tolerance = settings.svd_thr
+        self.tolerance = settings.svd_thr  # not yet implemented/interfaced
         self.local_dim = settings.local_dim
 
         self.mps = None
