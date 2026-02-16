@@ -2,7 +2,10 @@ from dataclasses import dataclass
 
 # To have consistennt settings across classes that use these
 
-
+# Feedback: somewhat unusual for the user to have to create the settings first,
+# then pass them on to MPO and MPS.
+# Perhaps a MPO and MPS can be used under the hood in a DmrgDriver where you set these
+# settings.
 @dataclass
 class Settings:
     """

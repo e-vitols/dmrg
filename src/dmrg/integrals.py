@@ -1,10 +1,11 @@
 import numpy as np
 import veloxchem as vlx
 
-
+# Feedback: separate alos docstrings into shorter lines, approx 80 chaacters.
 class IntegralsDriver:
     """
-    The IntegralsDriver object interfacing the program to VeloxChem for obtaininng integrals and molecular orbital (MO) coefficients.
+    The IntegralsDriver object interfacing the program to VeloxChem
+    for obtaininng integrals and molecular orbital (MO) coefficients.
 
     NOTE: this class is responsible for mainly interafacing with VLX
 
@@ -34,7 +35,8 @@ class IntegralsDriver:
             The VLX basis object.
 
         :return:
-            The overlap integrals (array), core hamiltonian integrals (array), two-electron integrals (array), and the nuclear repulsion energy (float).
+            The overlap integrals (array), core hamiltonian integrals (array),
+            two-electron integrals (array), and the nuclear repulsion energy (float).
         """
 
         V_nuc = molecule.nuclear_repulsion_energy()
@@ -73,22 +75,38 @@ class IntegralsDriver:
         self.nuc_repulsion_energy = V_nuc
         self.overlap = S
 
+    # Feedback: would be good to include a description of the parameters in the docstrings
     @staticmethod
     def permute_integrals(t_ij, v_ijkl, perm):
         """
-        Simpler to just permute the MOs
+        Simpler to just permute the MOs.
+
+        :param t_ij:
+            The one-electron integrals (in MO basis).
+        :param v_ijkl:
+            The two-electron integrals (in MO basis).
+        :param perm:
+            Describe what this is and how it should be used.
+            list of indices?
         """
         perm = np.asarray(perm)
         t_p = t_ij[np.ix_(perm, perm)]
         v_p = v_ijkl[np.ix_(perm, perm, perm, perm)]
         return t_p, v_p
 
+    # Feedback: some parameters are missing descriptions
     def get_transformed_integrals(self, molecule, basis, scf_results, permute=None):
         """
         Transform the AO-basis integrals to MO-basis.
 
+        :param molecule:
+            The molecule.
+        :param basis:
+            The basis set
         :param scf_results:
             The converged SCF tensors from a VeloxChem SCF calculation.
+        :param permute:
+            Describe what it is and how it should be used.
 
         :return:
             Returns the transformed one- and two-electron integrals in MO-basis.
