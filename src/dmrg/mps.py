@@ -107,7 +107,7 @@ class MpsDriver:
 
         self.mps = mps
 
-    def canonical_form(self, center=None, mps=None):
+    def canonical_form(self, center=None, mps=None, factorization="QR"):
         """
         Puts the MPS into canonical form on site 'center' via repeated singular-value decomposition.
 
@@ -133,16 +133,24 @@ class MpsDriver:
             if self.mps is None:
                 raise ValueError("MPS is not initialized!")
 
-            self.mps = self._canonicalize(self.mps, center)
+            if factorization.upper() == "QR":
+                self.mps = self._canonicalize_QR(self.mps, center)
+            elif factorization.upper() == "SVD":
+                self.mps = self._canonicalize_SVD(self.mps, center)
             self.schmidt_spectrum = self.get_schmidt_spectrum(self.mps, center)
             return self.mps
         else:
-            return self._canonicalize(mps, center)
+            if factorization.upper() == "QR":
+                self.mps = self._canonicalize_QR(mps, center)
+            elif factorization.upper() == "SVD":
+                self.mps = self._canonicalize_SVD(mps, center)
+            # return self._canonicalize_QR(mps, center)
+            # return self._canonicalize_SVD(mps, center)
 
     @staticmethod
-    def _canonicalize(mps, center):
+    def _canonicalize_SVD(mps, center):
         """
-        Implements canonicalization of an MPS.
+        Implements canonicalization of an MPS with SVD-factorization.
 
         :param mps:
             The matrix-product state object (list of numpy arrays).
@@ -200,6 +208,63 @@ class MpsDriver:
             mps_next_site = mps[l - 1].copy()
 
             mps[l - 1] = np.einsum("mdl, lr -> mdr", mps_next_site, G)
+
+        return mps
+
+    @staticmethod
+    def _canonicalize_QR(mps, center):
+        """
+        Implements canonicalization of an MPS with QR-factorization.
+
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+        :param center:
+            The SITE-based canonical center.
+
+        :return:
+            The MPS in canonical form. (list of arrays)
+        """
+
+        L = len(mps)  # self.nr_sites
+        d = mps[0].shape[1]
+
+        # Left canonicalize up to center site, right sweep
+        for l in range(center):
+            # Get bond dimension at site l
+            m_l, _, m_r = mps[l].shape
+
+            # Reshape the 3-legged tensor at site l into a matrix
+            A_l = mps[l].reshape(m_l * d, m_r)
+
+            # Perform QR factorization on the reshaped 3-legged tensor (matrix A_l)
+            Q, R = np.linalg.qr(A_l)
+            k = Q.shape[1]
+
+            # Replace the old tensor at site l with the left-canonicalized
+            mps[l] = Q.reshape(m_l, d, k)
+
+            # Transform to the renormalized/canonical (depending on if r < m_r) basis
+            mps_next_site = mps[l + 1].copy()
+            mps[l + 1] = np.einsum("lr, rdm -> ldm", R, mps_next_site)
+
+        # Right canonicalize up to center site, left sweep
+        for l in range(L - 1, center, -1):
+            # Get bond dimension at site l
+            m_l, _, m_r = mps[l].shape
+
+            # Reshape the 3-legged tensor at site l into a matrix
+            A_l = mps[l].reshape(m_l, d * m_r)
+
+            # Perform SVD on the reshaped 3-legged tensor (matrix A_l)
+            Q, R = np.linalg.qr(A_l.T.conjugate())
+            k = Q.shape[1]
+
+            # Replace the old tensor at site l with the right-canonicalized
+            mps[l] = Q.T.conjugate().reshape(k, d, m_r)
+
+            # Transform into the renormalized/canonical (depending on if r < m_l) basis
+            mps_next_site = mps[l - 1].copy()
+            mps[l - 1] = np.einsum("mdl, lr -> mdr", mps_next_site, R.T.conjugate())
 
         return mps
 
@@ -311,8 +376,8 @@ class MpsDriver:
         for l in range(center):
             N, M, W = mps[l], mps2[l], mpo[l]
             left_boundary = np.einsum(
-                "ldL, vbdc, LvR, Rcr -> lbr",
-                N.T.conjugate(),
+                "Ldl, vbdc, LvR, Rcr -> lbr",
+                N.conjugate(),
                 W,
                 left_boundary,
                 M,
@@ -350,11 +415,11 @@ class MpsDriver:
         for l in range(self.nr_sites - 1, center, -1):
             N, M, W = mps[l], mps2[l], mpo[l]
             right_boundary = np.einsum(
-                "ldL, bvcd, LvR, Rcr -> lbr",
+                "ldL, bvcd, LvR, rcR -> lbr",
                 M,
                 W,
                 right_boundary,
-                N.T.conjugate(),
+                N.conjugate(),
                 optimize=True,
             )
 
