@@ -80,14 +80,16 @@ class SweepDriver:
 
         return Y
 
-    def _check_isometry_right(self, A):
+    @staticmethod
+    def _check_isometry_right(A):
         # for debugging
         chi, d, r = A.shape
         M = A.reshape(chi, d * r)
         err = np.linalg.norm(M @ M.conj().T - np.eye(chi))
         return err
 
-    def _check_isometry_left(self, A):
+    @staticmethod
+    def _check_isometry_left(A):
         # for debugging
         l, d, chi = A.shape
         M = A.reshape(l * d, chi)
@@ -223,9 +225,9 @@ class SweepDriver:
                 E, theta = self.solve_local_two_site(mpo, mps, center=cen)
                 _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
 
-                # err_iso = self._check_isometry_left(mps[_center])
-                # if abs(err_iso) > 1e-6:
-                #    print(f'ISOMETRY warning: {err_iso}')
+                err_iso = self._check_isometry_left(mps[_center])
+                if abs(err_iso) > 1e-6:
+                    print(f"ISOMETRY warning: {err_iso}")
                 R_trunc_error[cen] = self.mps_drv.discarded_weight
 
                 self.mps_drv.mps = mps
@@ -244,9 +246,9 @@ class SweepDriver:
                 E, theta = self.solve_local_two_site(mpo, mps, center=cen)
                 _center, mps = self.mps_drv.split_twosite(theta, "left", center=cen)
 
-                # err_iso = self._check_isometry_right(mps[_center])
-                # if abs(err_iso) > 1e-6:
-                #    print(f'ISOMETRY warning: {err_iso}')
+                err_iso = self._check_isometry_right(mps[_center])
+                if abs(err_iso) > 1e-6:
+                    print(f"ISOMETRY warning: {err_iso}")
                 L_trunc_error[cen] = self.mps_drv.discarded_weight
 
                 self.mps_drv.mps = mps
