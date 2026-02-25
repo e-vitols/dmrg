@@ -85,7 +85,8 @@ class SweepDriver:
         # for debugging
         chi, d, r = A.shape
         M = A.reshape(chi, d * r)
-        err = np.linalg.norm(M @ M.conj().T - np.eye(chi))
+        # err = np.linalg.norm(M @ M.conj().T - np.eye(chi))
+        err = np.linalg.norm(M @ M.conj().T - np.eye(chi), ord=2)
         return err
 
     @staticmethod
@@ -93,8 +94,46 @@ class SweepDriver:
         # for debugging
         l, d, chi = A.shape
         M = A.reshape(l * d, chi)
-        err = np.linalg.norm(M.conj().T @ M - np.eye(chi))
+        # err = np.linalg.norm(M.conj().T @ M - np.eye(chi))
+        err = np.linalg.norm(M.conj().T @ M - np.eye(chi), ord=2)
         return err
+
+    def check_mixed_canonical(self, mps, center, tol=1e-10):
+        """
+        Simple check for isometry.
+        """
+        max_L = 0.0
+        max_R = 0.0
+        bad = []
+
+        for i, A in enumerate(mps):
+            if i < center:
+                err = self._check_isometry_left(A)
+                max_L = max(max_L, err)
+                if err > tol:
+                    bad.append(("L", i, err))
+            elif i > center:
+                err = self._check_isometry_right(A)
+                max_R = max(max_R, err)
+                if err > tol:
+                    bad.append(("R", i, err))
+            elif i == center:
+                continue
+
+        return max_L, max_R, bad
+
+    def _local_residual(self, Aop, x, lam):
+        """
+        Compute and return residual.
+        """
+        Ax = Aop.matvec(x)
+        den = np.linalg.norm(Ax)
+        if den == 0:
+            if abs(lam) < 1e-12:
+                return 0.0
+            else:
+                return np.inf
+        return np.linalg.norm(Ax - lam * x) / den
 
     def _effective_linop(
         self, mpo, mps, center=None, two_site=True, dtype=np.complex128
@@ -146,7 +185,15 @@ class SweepDriver:
 
         return LinearOperator((n, n), matvec=_matvec, dtype=dtype), shape
 
-    def solve_local_two_site(self, mpo, mps, center=None, maxiter=None):
+    def solve_local_two_site(
+        self,
+        mpo,
+        mps,
+        center=None,
+        maxiter=None,
+        dense_debug=False,
+        dtype=np.complex128,
+    ):
         """
         Solve the local (two-site) eigenproblem.
 
@@ -160,7 +207,9 @@ class SweepDriver:
         :return:
             The lowest (algebraically sorted) eigenvalue (float) and corresponding eigenvector (array) (two-site).
         """
-        Aop, shape = self._effective_linop(mpo, mps, center=center, two_site=True)
+        Aop, shape = self._effective_linop(
+            mpo, mps, center=center, two_site=True, dtype=self.mps_drv.dtype
+        )
 
         if center is None:
             center = self.canonical_center
@@ -168,21 +217,63 @@ class SweepDriver:
         P0 = self.mps_drv.get_twosite(center=center, mps=mps)
         v0 = P0.reshape(-1)
 
-        w, v = eigsh(
-            Aop, k=1, which="SA", v0=v0, tol=self.eig_tolerance, maxiter=maxiter
-        )
-        Theta_opt = v[:, 0].reshape(shape)
-        E0 = w[0].real
-        return E0, Theta_opt
+        ## for debugging
+        if dense_debug:
+            Ax = Aop.matvec(v0)
+            lam = np.vdot(v0, Ax) / np.vdot(v0, v0)
+            den = np.linalg.norm(Ax)
+            if den == 0:
+                res = 0.0
+            else:
+                res = np.linalg.norm(Ax - lam * v0) / np.linalg.norm(Ax)
+            print(f"** v0 energy, {lam.real:.6e} v0 residual: {res:.6e} **")
+
+            n = np.prod(shape)
+            M = np.zeros((n, n), dtype=dtype)
+            for j in range(n):
+                e = np.zeros(n, dtype=dtype)
+                e[j] = 1.0
+                M[:, j] = Aop.matvec(e)
+
+            w_all, V_all = np.linalg.eigh(M)
+            E0 = w_all[0].real
+            x0 = V_all[:, 0]
+
+            w_k, V_k = eigsh(
+                Aop, k=1, which="SA", tol=self.eig_tolerance, maxiter=maxiter
+            )
+            E_k = w_k[0].real
+            x_k = V_k[:, 0]
+
+            res_k = np.linalg.norm(M @ x_k - E_k * x_k) / max(
+                1.0, np.linalg.norm(M @ x_k)
+            )
+            if abs(E_k - E0) > 1e-8:
+                print(
+                    f"** WARNING: eigsh picked wrong eigenvalue: {E_k:.6e}, true: {E0:.6e}, residual: {res_k:.6e} **"
+                )
+
+        else:
+            w_k, V_k = eigsh(
+                Aop, k=1, which="SA", v0=v0, tol=self.eig_tolerance, maxiter=maxiter
+            )
+            E0 = w_k[0].real
+            x0 = V_k[:, 0]
+
+        Theta_opt = x0.reshape(shape)
+        res = self._local_residual(Aop, x0, E0)
+        return E0, Theta_opt, res
 
     def compute(
         self,
         mpo,
         mps=None,
         center=0,
-        ene_conv_thr=1e-6,
-        trunc_conv_thr=1e-8,
+        ene_conv_thr=1e-8,
+        trunc_conv_thr=1e-10,
         allow_bond_growth=None,
+        dense_debug=False,
+        check_iso=False,
     ):
         """
         Implements the DMRG variational sweeping, to find the ground state of given operator as an MPO.
@@ -199,6 +290,9 @@ class SweepDriver:
             The convergence threshold for the truncation errror between successive sweeps.
         :param allow_bond_growth:
             Whether to allow the bond dimension to grow during sweeps, if the truncation errors are too large with the given bond dimension. (bool)
+        :param dense_debug:
+            Related to deficiency of the sparse solver, https://scicomp.stackexchange.com/questions/6845/iwhy-does-scipy-eigsh-produce-erroneous-eigenvalues-in-case-of-harmonic-oscilla
+            Set to True for small (degenerate) Hamiltonians
 
         :return:
             The ground state energy and eigenvector.
@@ -213,59 +307,92 @@ class SweepDriver:
         self.mps_drv.mps = mps
         nr_bonds = len(mps) - 1
 
-        self.E_0 = 1e8
+        self.E_0 = np.inf
+        E_prev = self.E_0
         self.converged = False
 
         for sweep in range(self.nr_sweeps):
             print(f"Sweep: {sweep+1}")
 
-            R_trunc_error = np.zeros(nr_bonds, dtype=float)
+            R_trunc_error = np.zeros(nr_bonds)
+            R_loc_res = np.zeros(nr_bonds)
+
             # right-sweep
             for cen in range(nr_bonds):
-                E, theta = self.solve_local_two_site(mpo, mps, center=cen)
+                E_loc, theta, res_loc = self.solve_local_two_site(
+                    mpo,
+                    mps,
+                    center=cen,
+                    dtype=self.mps_drv.dtype,
+                    dense_debug=dense_debug,
+                )
                 _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
 
-                err_iso = self._check_isometry_left(mps[_center])
-                if abs(err_iso) > 1e-6:
-                    print(f"ISOMETRY warning: {err_iso}")
+                if check_iso:
+                    max_L, max_R, bad = self.check_mixed_canonical(mps, _center)
+                    if (max_L > 1e-6) or (max_R > 1e-6):
+                        print(
+                            f"** ISOMETRY WARNING: max_L: {max_L:.6f} * max_R: {max_R:.6f}  **"
+                        )
+
                 R_trunc_error[cen] = self.mps_drv.discarded_weight
+                R_loc_res[cen] = res_loc
 
                 self.mps_drv.mps = mps
                 self.mps_drv.canonical_center = _center
                 self.canonical_center = _center
 
-            E_rsweep = self.mps_drv.get_expectation_value(mpo, center=cen)
+            E_rsweep = self.mps_drv.get_expectation_value(mpo, center=_center)
+            R_trunc_max = R_trunc_error.max()
+            R_trunc_sum = R_trunc_error.sum()
+
             print(
                 f"Energy after right sweep: {E_rsweep:.6f} a.u.\n"
-                f"Discarded weight: max = {R_trunc_error.max():.3e}, mean = {R_trunc_error.mean():.3e} (worst bond: {int(R_trunc_error.argmax())})\n"
+                f"Local residual:   max = {R_loc_res.max():.3e}, mean = {R_loc_res.mean():.3e}\n"
+                f"Discarded weight: max = {R_trunc_error.max():.3e}, sum = {R_trunc_sum:.3e}, mean = {R_trunc_error.mean():.3e} (worst bond: {int(R_trunc_error.argmax())})\n"
             )
 
-            L_trunc_error = np.zeros(nr_bonds, dtype=float)
+            L_trunc_error = np.zeros(nr_bonds)
+            L_loc_res = np.zeros(nr_bonds)
+
             # left-sweep
             for cen in range(nr_bonds - 1, -1, -1):
-                E, theta = self.solve_local_two_site(mpo, mps, center=cen)
+                E_loc, theta, res_loc = self.solve_local_two_site(
+                    mpo,
+                    mps,
+                    center=cen,
+                    dtype=self.mps_drv.dtype,
+                    dense_debug=dense_debug,
+                )
                 _center, mps = self.mps_drv.split_twosite(theta, "left", center=cen)
 
-                err_iso = self._check_isometry_right(mps[_center])
-                if abs(err_iso) > 1e-6:
-                    print(f"ISOMETRY warning: {err_iso}")
+                if check_iso:
+                    max_L, max_R, bad = self.check_mixed_canonical(mps, _center)
+                    if (max_L > 1e-6) or (max_R > 1e-6):
+                        print(
+                            f"** ISOMETRY WARNING: max_L: {max_L:.6f} * max_R: {max_R:.6f}  **"
+                        )
+
                 L_trunc_error[cen] = self.mps_drv.discarded_weight
+                L_loc_res[cen] = res_loc
 
                 self.mps_drv.mps = mps
                 self.mps_drv.canonical_center = _center
                 self.canonical_center = _center
 
             L_trunc_max = L_trunc_error.max()
-            E_lsweep = self.mps_drv.get_expectation_value(mpo, center=_center)
+            L_trunc_sum = L_trunc_error.sum()
+            E_lsweep = self.mps_drv.get_expectation_value(mpo)
 
             print(
                 f"Energy after left sweep : {E_lsweep:.6f} a.u.\n"
-                f"Discarded weight: max = {L_trunc_max:.3e}, mean = {L_trunc_error.mean():.3e} (worst bond: {int(L_trunc_error.argmax())})\n"
+                f"Local residual:   max = {L_loc_res.max():.3e}, mean = {L_loc_res.mean():.3e}\n"
+                f"Discarded weight: max = {L_trunc_max:.3e}, sum = {L_trunc_sum:.3e}, mean = {L_trunc_error.mean():.3e} (worst bond: {int(L_trunc_error.argmax())})\n"
             )
 
             if allow_bond_growth and (L_trunc_max > trunc_conv_thr):
                 print(
-                    f"**OBS** Large truncation error: Maximum bond dimension increased from {self.mps_drv.max_bond_dim} to {self.mps_drv.max_bond_dim+2}\n"
+                    f"**OBS** Large truncation error: Maximum bond dimension increased from {self.mps_drv.max_bond_dim} to {self.mps_drv.max_bond_dim+self.bond_growth_step}\n"
                 )
                 self.mps_drv.max_bond_dim += self.bond_growth_step
             elif L_trunc_max > trunc_conv_thr:
@@ -274,12 +401,21 @@ class SweepDriver:
                 )
                 # To allow for convergence with fixed bond dim
                 L_trunc_max = 0
-            else:
-                # To allow for convergence with fixed bond dim
-                L_trunc_max = 0
 
-            if abs(self.E_0 - E_lsweep) < ene_conv_thr and (
-                L_trunc_max < trunc_conv_thr
+            denom = max(1.0, abs(E_lsweep))
+            rel_dE = abs(E_lsweep - E_prev) / denom
+            dE_sweep = abs(E_lsweep - E_rsweep)
+            max_res = max(R_loc_res.max(), L_loc_res.max())
+            trunc_check = (L_trunc_max < trunc_conv_thr) and (
+                L_trunc_sum < 10 * trunc_conv_thr
+            )
+
+            # if abs(self.E_0 - E_lsweep) < ene_conv_thr and (L_trunc_max < trunc_conv_thr):
+            if (
+                (rel_dE < ene_conv_thr)
+                and trunc_check
+                and (dE_sweep < 10 * ene_conv_thr)
+                and (max_res < 10 * self.eig_tolerance)
             ):
                 self.converged = True
                 self.E_0 = E_lsweep
@@ -288,4 +424,5 @@ class SweepDriver:
                 )
                 return self.E_0, self.mps_drv.mps
 
+            E_prev = E_lsweep
             self.E_0 = E_lsweep

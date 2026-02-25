@@ -32,8 +32,9 @@ class MpsDriver:
         self.canonical_center = None
         self.schmidt_spectrum = None
         self.discarded_weight = None
+        self.dtype = np.float64
 
-    def initialize_random_mps(self):
+    def initialize_random_mps(self, complex=False):
         """
         Initializes the MatrixProductState object with random coefficients.
 
@@ -43,34 +44,43 @@ class MpsDriver:
         L = self.nr_sites
         d = self.local_dim
         m = self.max_bond_dim
+        if complex:
+            self.dtype = np.complex128
+        else:
+            self.dtype = np.float64
 
         mps = []
 
         def chi(i):
             return max(1, min(m, d ** (i + 1), d ** (L - (i + 1))))
 
+        def rand_tensor(m_l, d, m_r):
+            if self.dtype == np.complex128:
+                return (
+                    np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
+                ).astype(np.complex128)
+            else:
+                return np.random.randn(m_l, d, m_r).astype(np.float64)
+
         # Left-most matrix (row-vector)
         m_l = 1
         m_r = chi(0)
-        A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
-        mps.append(A)
+        mps.append(rand_tensor(m_l, d, m_r))
 
         # The middle sites (matrices) are built iteratively, taking the shape of the previous sites right dimension for the new left
         for i in range(1, L - 1):
             m_l = mps[-1].shape[2]
             m_r = chi(i)
-            A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
-            mps.append(A.copy())
+            mps.append(rand_tensor(m_l, d, m_r))
 
         # Right-most matrix (column-vector)
         m_l = mps[-1].shape[2]
         m_r = 1
-        A = np.random.randn(m_l, d, m_r) + 1j * np.random.randn(m_l, d, m_r)
-        mps.append(A)
+        mps.append(rand_tensor(m_l, d, m_r))
 
         self.mps = mps
 
-    def initialize_fixed_mps(self):
+    def initialize_fixed_mps(self, complex=False):
         """
         Initializes the MatrixProductState object with fixed coefficients (0.5+0.5i).
 
@@ -80,6 +90,10 @@ class MpsDriver:
         L = self.nr_sites
         d = self.local_dim
         m = self.max_bond_dim
+        if complex:
+            self.dtype = np.complex128
+        else:
+            self.dtype = np.float64
 
         mps = []
 
@@ -89,20 +103,30 @@ class MpsDriver:
         # Left-most matrix (row-vector)
         m_l = 1
         m_r = chi(0)
-        A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=np.complex128)
+        if complex:
+            A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=self.dtype)
+        else:
+            A = np.full((m_l, d, m_r), 0.5, dtype=self.dtype)
         mps.append(A)
 
         # The middle sites (matrices) are built iteratively, taking the shape of the previous sites right dimension for the new left
         for i in range(1, L - 1):
             m_l = mps[-1].shape[2]
             m_r = chi(i)
-            A = A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=np.complex128)
+            if complex:
+                A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=self.dtype)
+            else:
+                A = np.full((m_l, d, m_r), 0.5, dtype=self.dtype)
             mps.append(A)
 
         # Right-most matrix (column-vector)
         m_l = mps[-1].shape[2]
         m_r = 1
-        A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=np.complex128)
+        # A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=np.complex128)
+        if complex:
+            A = np.full((m_l, d, m_r), 0.5 + 0.5j, dtype=self.dtype)
+        else:
+            A = np.full((m_l, d, m_r), 0.5, dtype=self.dtype)
         mps.append(A)
 
         self.mps = mps
@@ -303,8 +327,8 @@ class MpsDriver:
         A = mps[self.canonical_center]
         return np.sqrt(np.vdot(A, A).real)
 
-    @staticmethod
-    def overlap(mps1, mps2):
+    # @staticmethod
+    def overlap(self, mps1, mps2):
         """
         Gets the overlap squared of two MPSs: mps1 and mps2.
 
@@ -317,7 +341,7 @@ class MpsDriver:
             The overlap between mps1 and mps2. (float)
         """
         # Environment defined to iteratively contract
-        env = np.array([[1.0]], dtype=complex)
+        env = np.array([[1.0]], dtype=self.dtype)
         if len(mps1) != len(mps2):
             raise ValueError("The MPSs are of different lengths!!")
         for i, _ in enumerate(mps1):
@@ -411,7 +435,7 @@ class MpsDriver:
         if mps2 is None:
             mps2 = mps
 
-        right_boundary = np.array([[[1.0]]])
+        right_boundary = np.array([[[1.0]]], dtype=self.dtype)
         for l in range(self.nr_sites - 1, center, -1):
             N, M, W = mps[l], mps2[l], mpo[l]
             right_boundary = np.einsum(
@@ -446,6 +470,7 @@ class MpsDriver:
 
         # TODO: replace einsum
         exp_val = np.einsum("ldr, rdl", left_boundary, right_boundary)
+        # exp_val = np.einsum("ldr, ldr", left_boundary, right_boundary)
         if np.abs(exp_val.imag) < 1e-14:
             return exp_val.real
         else:
@@ -575,9 +600,13 @@ class MpsDriver:
         # truncate:
         chi = min(self.max_bond_dim, chi_full)
         # truncation error/schur complement
-        # schur_complement = np.sum(S[chi:])
-        self.discarded_weight = np.sum(S[chi:] ** 2)
-        kept_norm = np.sqrt(np.sum(S[:chi] ** 2))
+        S2 = S**2
+        tot = S2.sum()
+        disc = S2[chi:].sum()
+        self.discarded_weight = disc / tot if tot > 0 else 0.0
+
+        kept = S2[:chi].sum()
+        kept_norm = np.sqrt(kept) if kept > 0 else 1.0
         S = S[:chi] / kept_norm
         U = U[:, :chi]
         Vh = Vh[:chi]
@@ -590,6 +619,7 @@ class MpsDriver:
         elif direction == "left":
             mps[center] = (U @ np.diag(S)).reshape(l, d1, chi)
             mps[center + 1] = Vh.reshape(chi, d2, r)
-            new_canonical_center = max(center - 1, 0)
+            # new_canonical_center = max(center - 1, 0)
+            new_canonical_center = max(center, 0)
 
         return new_canonical_center, mps
