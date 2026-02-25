@@ -101,7 +101,6 @@ jupyter book start
 ## Known issues
 
 * The electronic Hamiltonian is implemented *very* inefficiently, and scales horribly with the number of sites, hence one is recommended to not go beyond tiny systems for now.
-* There is some instability of the DMRG solver for the Hubbard model specifically, though for all numerical tests performed so far it always converges to the exact solution so this *seems* like a formal problem for now, but this will be addressed.
 
 ## Background
 The wavefunction ansatz in the DMRG algorithm is that of a **matrix product state (MPS)**. The full configuration interaction (FCI) wavefunction can be written in terms of an MPS as:
