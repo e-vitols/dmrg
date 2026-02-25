@@ -38,10 +38,12 @@ class SweepDriver:
             self.mpo_drv = MpoDriver()
 
         self.settings = settings
-        # self.nr_sweeps = 50
+
         self.nr_sweeps = settings.nr_sweeps
         self.nr_sites = settings.nr_sites
         self.max_bond_dim = settings.max_bond_dim
+        self.N = settings.nr_particles
+
         self.svd_tolerance = settings.svd_thr
         self.eig_tolerance = settings.eig_thr
         self.local_dim = settings.local_dim
@@ -349,7 +351,7 @@ class SweepDriver:
             print(
                 f"Energy after right sweep: {E_rsweep:.6f} a.u.\n"
                 f"Local residual:   max = {R_loc_res.max():.3e}, mean = {R_loc_res.mean():.3e}\n"
-                f"Discarded weight: max = {R_trunc_error.max():.3e}, sum = {R_trunc_sum:.3e}, mean = {R_trunc_error.mean():.3e} (worst bond: {int(R_trunc_error.argmax())})\n"
+                f"Discarded weight: max = {R_trunc_max:.3e}, sum = {R_trunc_sum:.3e}, mean = {R_trunc_error.mean():.3e} (worst bond: {int(R_trunc_error.argmax())})\n"
             )
 
             L_trunc_error = np.zeros(nr_bonds)

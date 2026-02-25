@@ -27,12 +27,16 @@ class MpsDriver:
         self.max_bond_dim = settings.max_bond_dim
         self.tolerance = settings.svd_thr  # not yet implemented/interfaced
         self.local_dim = settings.local_dim
+        self.N = settings.nr_particles
 
         self.mps = None
         self.canonical_center = None
         self.schmidt_spectrum = None
         self.discarded_weight = None
         self.dtype = np.float64
+
+        self.q_phys = [0, 1, 1, 2]
+        self.q_bonds = None
 
     def initialize_random_mps(self, complex=False):
         """
@@ -129,6 +133,50 @@ class MpsDriver:
             A = np.full((m_l, d, m_r), 0.5, dtype=self.dtype)
         mps.append(A)
 
+        self.mps = mps
+
+    def initialize_u1_mps(self, N, complex=False):
+        """
+        Initializes the MatrixProductState object in a fixed particle-number sector, as a simple product state.
+
+        :return:
+            Returns a product-state matrix-product state (MPS) with fixed particle number. (list of arrays)
+        """
+        L = self.nr_sites
+        d = self.local_dim
+        if N < 0 or N > 2 * L:
+            raise ValueError(f"N must satisfy 0 <= N <= {2*L}")
+        if complex:
+            self.dtype = np.complex128
+        else:
+            self.dtype = np.float64
+
+        mps = []
+        q_phys = np.array([0, 1, 1, 2], dtype=int)
+        q_bonds = []
+
+        N_left = N
+        N_curr = 0
+        q_bonds.append([N_curr], dtype=int)
+        for i in range(L):
+            if N_left >= 2:
+                state = 3
+                N_left -= 2
+                N_curr += 2
+            elif N_left >= 1:
+                state = 1
+                N_left -= 1
+                N_curr += 1
+            else:
+                state = 0
+
+            A = np.zeros((1, d, 1), dtype=self.dtype)
+            A[0, state, 0] = 1.0
+            mps.append(A)
+            q_bonds.append([N_curr], dtype=int)
+
+        self.q_phys = q_phys
+        self.q_bonds = q_bonds
         self.mps = mps
 
     def canonical_form(self, center=None, mps=None, factorization="QR"):
@@ -569,7 +617,6 @@ class MpsDriver:
         l, d1, d2, r = two_site_tensor.shape
 
         return two_site_tensor.reshape(l, d1, d2, r)
-        # return two_site_tensor.reshape(l, d1 * d2, r)
 
     def split_twosite(self, theta, direction, mps=None, center=None):
         """
@@ -593,6 +640,65 @@ class MpsDriver:
             new_canonical_center = self.canonical_center
         if mps is None:
             mps = self.mps
+
+        U, S, Vh = np.linalg.svd(theta.reshape(l * d1, d2 * r), full_matrices=False)
+        chi_full = S.size
+
+        # truncate:
+        chi = min(self.max_bond_dim, chi_full)
+        # truncation error/schur complement
+        S2 = S**2
+        tot = S2.sum()
+        disc = S2[chi:].sum()
+        self.discarded_weight = disc / tot if tot > 0 else 0.0
+
+        kept = S2[:chi].sum()
+        kept_norm = np.sqrt(kept) if kept > 0 else 1.0
+        S = S[:chi] / kept_norm
+        U = U[:, :chi]
+        Vh = Vh[:chi]
+
+        if direction == "right":
+            mps[center] = U.reshape(l, d1, chi)
+            mps[center + 1] = (np.diag(S) @ Vh).reshape(chi, d2, r)
+            new_canonical_center += 1
+
+        elif direction == "left":
+            mps[center] = (U @ np.diag(S)).reshape(l, d1, chi)
+            mps[center + 1] = Vh.reshape(chi, d2, r)
+            # new_canonical_center = max(center - 1, 0)
+            new_canonical_center = max(center, 0)
+
+        return new_canonical_center, mps
+
+    def split_twosite_u1(self, theta, direction, mps=None, center=None):
+        """
+        Splits a supplied two-site tensor into two one-site tensors.
+
+        :param theta:
+            The two-site tensor. (array)
+        :param direction:
+            The sweep direction. (str)
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+        :param center:
+            The center defining the left site of the two-site tensor. (int)
+
+        :return:
+            The new center and the MPS.
+        """
+        l, d1, d2, r = theta.shape
+        new_canonical_center = center
+        if center is None:
+            new_canonical_center = self.canonical_center
+        if mps is None:
+            mps = self.mps
+
+        q_left = self.q_bonds[center]
+        q_right = self.q_bonds[center + 2]
+
+        q_row = (q_left[:, None] + self.q_phys[None, :]).reshape(l * d1)
+        q_col = (q_right[None, :] - self.q_phys[:, None]).reshape(d2 * r)
 
         U, S, Vh = np.linalg.svd(theta.reshape(l * d1, d2 * r), full_matrices=False)
         chi_full = S.size
