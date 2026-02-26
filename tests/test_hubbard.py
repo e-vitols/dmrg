@@ -85,7 +85,7 @@ class TestHubbardHamiltonian:
 
         sweep_drv = dmrg.SweepDriver(settings, mps_drv=mps_drv, mpo_drv=mpo_drv)
 
-        E0, mps = sweep_drv.compute(mpo)
+        E0, mps = sweep_drv.compute(mpo, random_lanczos=True)
 
         # reference
         ref = -6.875942809005068
