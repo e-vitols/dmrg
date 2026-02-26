@@ -35,7 +35,7 @@ class MpsDriver:
         self.discarded_weight = None
         self.dtype = np.float64
 
-        self.q_phys = [0, 1, 1, 2]
+        self.q_phys = np.array([0, 1, 1, 2], dtype=int)
         self.q_bonds = None
 
     def initialize_random_mps(self, complex=False):
@@ -152,31 +152,43 @@ class MpsDriver:
         else:
             self.dtype = np.float64
 
+        # multiplicty, degenerate single-occ.
+        g = {0: 1, 1: 2, 2: 1}
+        mu = {0: 0, 1: 0, 2: 1, 3: 0}
+
+        # (qL, g, qR)
         mps = []
-        q_phys = np.array([0, 1, 1, 2], dtype=int)
+
+        q_phys = self.q_phys  # np.array([0, 1, 1, 2], dtype=int)
         q_bonds = []
+        q_bonds.append({0: 1})
 
         N_left = N
         N_curr = 0
-        q_bonds.append(np.array([N_curr], dtype=int))
         for i in range(L):
             if N_left >= 2:
                 state = 3
                 N_left -= 2
-                N_curr += 2
+
             elif N_left >= 1:
                 state = 1
                 N_left -= 1
-                N_curr += 1
+
             else:
                 state = 0
 
-            A = np.zeros((1, d, 1), dtype=self.dtype)
-            A[0, state, 0] = 1.0
-            mps.append(A)
-            q_bonds.append(np.array([N_curr], dtype=int))
+            q_L = N_curr
+            q_P = int(q_phys[state])
+            q_R = q_L + q_P
 
-        self.q_phys = q_phys
+            block = np.zeros((1, g[q_P], 1), dtype=self.dtype)
+            mps.append({(q_L, q_R): block})
+
+            q_bonds.append({q_R: 1})
+
+            N_curr = q_R
+
+        # self.q_phys = q_phys
         self.q_bonds = q_bonds
         self.mps = mps
 
@@ -609,15 +621,37 @@ class MpsDriver:
 
         left_center = center
         right_center = center + 1
-        two_site_tensor = np.einsum(
-            "ldr, rDR -> ldDR",
-            mps[left_center],
-            mps[right_center],
-            optimize=True,
-        )
-        l, d1, d2, r = two_site_tensor.shape
+        # mps[center] = {(qL, qR): block}, qR is the middle-charge
+        # mps[center+1] = {(qL, qR): block}, qL is the middle-charge
+        A_L = mps[left_center]
+        A_R = mps[right_center]
 
-        return two_site_tensor.reshape(l, d1, d2, r)
+        # midL = {keys[1] for keys in A_L}
+        # midR = {keys[0] for keys in A_R}
+
+        theta = {}
+
+        # TODO: this can be made more efficient
+        for ql in A_L:
+            for qr in A_R:
+                if ql[1] == qr[0]:
+                    qM = ql[1]
+
+                    two_site_block = np.einsum(
+                        "ldr, rDR -> ldDR",
+                        A_L[ql],
+                        A_R[qr],
+                        optimize=True,
+                    )
+                    key = (ql[0], qM, qr[1])
+
+                    # TODO: the if is probably not needed here
+                    if key not in theta:
+                        theta[key] = two_site_block
+                    else:
+                        theta[key] += two_site_block
+
+        return theta
 
     def split_twosite(self, theta, direction, mps=None, center=None):
         """
