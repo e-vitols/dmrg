@@ -135,7 +135,7 @@ class MpsDriver:
 
         self.mps = mps
 
-    def initialize_u1_mps(self, N, complex=False):
+    def initialize_u1_mps(self, complex=False):
         """
         Initializes the MatrixProductState object in a fixed particle-number sector, as a simple product state.
 
@@ -144,6 +144,7 @@ class MpsDriver:
         """
         L = self.nr_sites
         d = self.local_dim
+        N = self.N
         if N < 0 or N > 2 * L:
             raise ValueError(f"N must satisfy 0 <= N <= {2*L}")
         if complex:
@@ -157,7 +158,7 @@ class MpsDriver:
 
         N_left = N
         N_curr = 0
-        q_bonds.append([N_curr], dtype=int)
+        q_bonds.append(np.array([N_curr], dtype=int))
         for i in range(L):
             if N_left >= 2:
                 state = 3
@@ -173,7 +174,7 @@ class MpsDriver:
             A = np.zeros((1, d, 1), dtype=self.dtype)
             A[0, state, 0] = 1.0
             mps.append(A)
-            q_bonds.append([N_curr], dtype=int)
+            q_bonds.append(np.array([N_curr], dtype=int))
 
         self.q_phys = q_phys
         self.q_bonds = q_bonds
@@ -688,6 +689,8 @@ class MpsDriver:
             The new center and the MPS.
         """
         l, d1, d2, r = theta.shape
+        M = theta.reshape(l * d1, d2 * r)
+
         new_canonical_center = center
         if center is None:
             new_canonical_center = self.canonical_center
@@ -696,36 +699,85 @@ class MpsDriver:
 
         q_left = self.q_bonds[center]
         q_right = self.q_bonds[center + 2]
+        # print(f'*** {q_left, q_right} ***', flush=True)
 
         q_row = (q_left[:, None] + self.q_phys[None, :]).reshape(l * d1)
         q_col = (q_right[None, :] - self.q_phys[:, None]).reshape(d2 * r)
+        mask = q_row[:, None] == q_col[None, :]
+        Mproj = M * mask
+        # M = Mproj
 
-        U, S, Vh = np.linalg.svd(theta.reshape(l * d1, d2 * r), full_matrices=False)
-        chi_full = S.size
+        blocks = []
+        qvals = np.intersect1d(np.unique(q_row), np.unique(q_col))
+        # print(f'*** {q_row, q_col} ***', flush=True)
+        # print(f'*** {qvals} ***', flush=True)
+        for qmid in qvals:
+            rows = np.where(q_row == qmid)[0]
+            cols = np.where(q_col == qmid)[0]
+            # print(rows,cols)
+            # for row in rows:
+            #    for col in cols:
+            #        Uq, Sq, Vhq = np.linalg.svd(theta[:, row, col,:], full_matrices=False)
+            #        blocks.append((qmid, row, col, Uq, Sq, Vhq))
+            Uq, Sq, Vhq = np.linalg.svd(M[np.ix_(rows, cols)], full_matrices=False)
+            blocks.append((qmid, rows, cols, Uq, Sq, Vhq))
 
-        # truncate:
-        chi = min(self.max_bond_dim, chi_full)
-        # truncation error/schur complement
-        S2 = S**2
-        tot = S2.sum()
-        disc = S2[chi:].sum()
+        all_s = []
+        for bi, (_, _, _, _, Sq, _) in enumerate(blocks):
+            for k, sv in enumerate(Sq):
+                all_s.append((sv, bi, k))
+
+        # sort by singular-value size, descending order
+        all_s.sort(key=lambda t: t[0], reverse=True)
+
+        normM = np.linalg.norm(M) + 1e-300
+        leak = np.linalg.norm(M[~mask]) / normM
+        if leak > 1e-4:
+            print(f"U(1) leakage: {leak:.3e}")
+
+        chi = min(self.max_bond_dim, len(all_s))
+        kept_sv = all_s[:chi]
+
+        U_keep = np.zeros((l * d1, chi), dtype=self.dtype)
+        Vh_keep = np.zeros((chi, d2 * r), dtype=self.dtype)
+        S_keep = np.zeros((chi))
+        q_mid_new = np.zeros((chi), dtype=int)
+
+        for j, (sv, bi, k) in enumerate(kept_sv):
+            qmid, rows, cols, Uq, Sq, Vhq = blocks[bi]
+            U_keep[rows, j] = Uq[:, k]
+            Vh_keep[j, cols] = Vhq[k, :]
+            S_keep[j] = sv
+            q_mid_new[j] = qmid
+
+        S2_all = np.array([sv**2 for (sv, _, _) in all_s], dtype=float)
+        tot = S2_all.sum()
+        disc = S2_all[chi:].sum() if chi < len(S2_all) else 0.0
+        # self.discarded_weight = disc / tot
         self.discarded_weight = disc / tot if tot > 0 else 0.0
 
-        kept = S2[:chi].sum()
-        kept_norm = np.sqrt(kept) if kept > 0 else 1.0
-        S = S[:chi] / kept_norm
-        U = U[:, :chi]
-        Vh = Vh[:chi]
+        # kept = S2_all[:chi].sum()
+        # kept_norm = np.sqrt(kept)
+        # S_keep /= kept_norm
+        kept = (S_keep * S_keep).sum()
+        if kept > 0:
+            S_keep /= np.sqrt(kept)
 
+        U = U_keep
+        Vh = Vh_keep
         if direction == "right":
             mps[center] = U.reshape(l, d1, chi)
-            mps[center + 1] = (np.diag(S) @ Vh).reshape(chi, d2, r)
+            # mps[center + 1] = (np.diag(S_keep) @ Vh).reshape(chi, d2, r)
+            mps[center + 1] = (S_keep[:, None] * Vh).reshape(chi, d2, r)
             new_canonical_center += 1
 
         elif direction == "left":
-            mps[center] = (U @ np.diag(S)).reshape(l, d1, chi)
+            # mps[center] = (U @ np.diag(S_keep)).reshape(l, d1, chi)
+            mps[center] = (U * S_keep[None, :]).reshape(l, d1, chi)
             mps[center + 1] = Vh.reshape(chi, d2, r)
             # new_canonical_center = max(center - 1, 0)
             new_canonical_center = max(center, 0)
+
+        self.q_bonds[center + 1] = q_mid_new
 
         return new_canonical_center, mps

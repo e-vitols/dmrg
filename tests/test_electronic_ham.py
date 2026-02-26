@@ -13,11 +13,14 @@ class TestElectronicHamiltonian:
     def test_h2_sto3g(self, m_bonddim=2, nr_sites=2):
         canonical_center = 0
 
-        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, max_bond_dim=m_bonddim, nr_particles=2
+        )
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv.initialize_random_mps()
+        # mps_drv.initialize_random_mps()
+        mps_drv.initialize_u1_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 
@@ -71,11 +74,14 @@ class TestElectronicHamiltonian:
     def test_h2_631G(self, m_bonddim=4, nr_sites=4):
         canonical_center = 0
 
-        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, max_bond_dim=m_bonddim, nr_particles=2
+        )
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv.initialize_random_mps()
+        # mps_drv.initialize_random_mps()
+        mps_drv.initialize_u1_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 

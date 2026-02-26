@@ -187,6 +187,56 @@ class SweepDriver:
 
         return LinearOperator((n, n), matvec=_matvec, dtype=dtype), shape
 
+    def _effective_linop_u1(
+        self, mpo, mps, center=None, two_site=True, dtype=np.complex128
+    ):
+        """
+        The mapping/linear operator used in the Lanczos solver.
+
+        :param mpo:
+            The matrix-product operator object (list of numpy arrays).
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+        :center:
+            The current canonical center. (int)
+        :two_site:
+            Whether to run two-site optimization (recommended, and the only currently implemented). (bool)
+        :dtype:
+            The datatype.
+
+        :return:
+            The effective operator for the eigensolver.
+        """
+
+        # dtype is specified since this saves one iteration, as described in scipy documentation
+        if center is None:
+            center = self.mps_drv.canonical_center
+        if not two_site:
+            raise NotImplementedError("Only two-site optimization is enabled.")
+
+        left_center = center
+        right_center = center + 1
+
+        L = self.mps_drv.left_boundary(mpo, mps=mps, center=left_center)
+        R = self.mps_drv.right_boundary(mpo, mps=mps, center=right_center)
+        Wl = mpo[left_center]
+        Wr = mpo[right_center]
+
+        Dl = mps[left_center].shape[0]
+        Dr = mps[right_center].shape[2]
+        d1 = Wl.shape[3]
+        d2 = Wr.shape[3]
+        dd = d1 * d2
+        shape = (Dl, d1, d2, Dr)
+        n = Dl * dd * Dr
+
+        def _matvec(x):
+            X = x.reshape(shape)
+            Y = self.apply_eff_ham(L, Wl, Wr, R, X)
+            return Y.reshape(n)
+
+        return LinearOperator((n, n), matvec=_matvec, dtype=dtype), shape
+
     def solve_local_two_site(
         self,
         mpo,
@@ -195,6 +245,7 @@ class SweepDriver:
         maxiter=None,
         dense_debug=False,
         dtype=np.complex128,
+        random_lanczos=False,
     ):
         """
         Solve the local (two-site) eigenproblem.
@@ -257,7 +308,12 @@ class SweepDriver:
 
         else:
             w_k, V_k = eigsh(
-                Aop, k=1, which="SA", v0=v0, tol=self.eig_tolerance, maxiter=maxiter
+                Aop,
+                k=1,
+                which="SA",
+                v0=v0 if not random_lanczos else None,
+                tol=self.eig_tolerance,
+                maxiter=maxiter,
             )
             E0 = w_k[0].real
             x0 = V_k[:, 0]
@@ -275,6 +331,7 @@ class SweepDriver:
         trunc_conv_thr=1e-10,
         allow_bond_growth=None,
         dense_debug=False,
+        random_lanczos=False,
         check_iso=False,
     ):
         """
@@ -327,8 +384,10 @@ class SweepDriver:
                     center=cen,
                     dtype=self.mps_drv.dtype,
                     dense_debug=dense_debug,
+                    random_lanczos=random_lanczos,
                 )
-                _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
+                # _center, mps = self.mps_drv.split_twosite(theta, "right", center=cen)
+                _center, mps = self.mps_drv.split_twosite_u1(theta, "right", center=cen)
 
                 if check_iso:
                     max_L, max_R, bad = self.check_mixed_canonical(mps, _center)
@@ -365,8 +424,10 @@ class SweepDriver:
                     center=cen,
                     dtype=self.mps_drv.dtype,
                     dense_debug=dense_debug,
+                    random_lanczos=random_lanczos,
                 )
-                _center, mps = self.mps_drv.split_twosite(theta, "left", center=cen)
+                # _center, mps = self.mps_drv.split_twosite(theta, "left", center=cen)
+                _center, mps = self.mps_drv.split_twosite_u1(theta, "left", center=cen)
 
                 if check_iso:
                     max_L, max_R, bad = self.check_mixed_canonical(mps, _center)

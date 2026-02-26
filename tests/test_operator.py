@@ -7,11 +7,14 @@ import dmrg
 class TestOperator:
     def test_chem_pot(self, m_bonddim=8, nr_sites=4, canonical_center=0):
         # TODO: separate into a different test per assertion
-        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, max_bond_dim=m_bonddim, nr_particles=4
+        )
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv.initialize_fixed_mps()
+        # mps_drv.initialize_fixed_mps()
+        mps_drv.initialize_u1_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 
@@ -25,11 +28,14 @@ class TestOperator:
     # @pytest.mark.slow
     def test_chem_pot(self, m_bonddim=8, nr_sites=4, canonical_center=0):
         # TODO: separate into a different test per assertion
-        settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
+        settings = dmrg.Settings(
+            nr_sites=nr_sites, max_bond_dim=m_bonddim, nr_particles=8
+        )
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
 
-        mps_drv.initialize_fixed_mps()
+        # mps_drv.initialize_fixed_mps()
+        mps_drv.initialize_u1_mps()
         mps_drv.canonical_form(canonical_center)
         mps_drv.normalize()
 
