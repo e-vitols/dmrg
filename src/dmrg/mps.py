@@ -36,6 +36,7 @@ class MpsDriver:
         self.dtype = np.float64
 
         self.q_phys = np.array([0, 1, 1, 2], dtype=int)
+        self.g_degen = {0: 1, 1: 2, 2: 1}
         self.q_bonds = None
 
     def initialize_random_mps(self, complex=False):
@@ -144,6 +145,7 @@ class MpsDriver:
         """
         L = self.nr_sites
         d = self.local_dim
+        m = self.max_bond_dim
         N = self.N
         if N < 0 or N > 2 * L:
             raise ValueError(f"N must satisfy 0 <= N <= {2*L}")
@@ -152,8 +154,11 @@ class MpsDriver:
         else:
             self.dtype = np.float64
 
+        def chi(i):
+            return max(1, min(m, d ** (i + 1), d ** (L - (i + 1))))
+
         # multiplicty, degenerate single-occ.
-        g = {0: 1, 1: 2, 2: 1}
+        g = self.g_degen  # {0: 1, 1: 2, 2: 1}
         mu = {0: 0, 1: 0, 2: 1, 3: 0}
 
         # (qL, g, qR)
@@ -166,6 +171,10 @@ class MpsDriver:
         N_left = N
         N_curr = 0
         for i in range(L):
+            if i == 0:
+                m_l = 1
+            m_r = chi(i)
+
             if N_left >= 2:
                 state = 3
                 N_left -= 2
@@ -181,12 +190,14 @@ class MpsDriver:
             q_P = int(q_phys[state])
             q_R = q_L + q_P
 
-            block = np.zeros((1, g[q_P], 1), dtype=self.dtype)
+            block = np.zeros((m_l, g[q_P], m_r), dtype=self.dtype)
+            block[0, mu[state], 0] = 1.0
             mps.append({(q_L, q_R): block})
 
             q_bonds.append({q_R: 1})
 
             N_curr = q_R
+            m_l = m_r
 
         # self.q_phys = q_phys
         self.q_bonds = q_bonds
@@ -708,7 +719,7 @@ class MpsDriver:
 
     def split_twosite_u1(self, theta, direction, mps=None, center=None):
         """
-        Splits a supplied two-site tensor into two one-site tensors.
+        Splits a supplied two-site tensor into two one-site tensors (blocks).
 
         :param theta:
             The two-site tensor. (array)
@@ -722,96 +733,160 @@ class MpsDriver:
         :return:
             The new center and the MPS.
         """
-        l, d1, d2, r = theta.shape
-        M = theta.reshape(l * d1, d2 * r)
-
-        new_canonical_center = center
-        if center is None:
-            new_canonical_center = self.canonical_center
-        if mps is None:
+        if mps == None:
             mps = self.mps
+        g = self.g_degen
+        dim_L, dim_R = self.q_bonds[center], self.q_bonds[center + 2]
+        # rows and cols correspond to the rows and cols of the supermat
+        # indexed by qM, e.g.: rows[4] {2: slice(0, 1, None)} where the second
+        # key refers to the left bond charge, qL. the same holds for the cols
+        M_qM, rows, cols = self._get_supermat_by_qM(theta, dim_L, dim_R)
 
-        q_left = self.q_bonds[center]
-        q_right = self.q_bonds[center + 2]
-        # print(f'*** {q_left, q_right} ***', flush=True)
+        # TODO: there is a memory-saving option by computing the SVD first
+        # but computing only the singular-values: np.linalg.svd(a, compute_uv=False)
+        # to use for truncation. alternatively, as is done below, store ALL matrices
+        # for later truncation. should investigate and compare
+        sing_val_info = []
 
-        q_row = (q_left[:, None] + self.q_phys[None, :]).reshape(l * d1)
-        q_col = (q_right[None, :] - self.q_phys[:, None]).reshape(d2 * r)
-        mask = q_row[:, None] == q_col[None, :]
-        Mproj = M * mask
-        # M = Mproj
+        A_left_new = {}
+        A_right_new = {}
+        S_qm_full = {}
+        for qM in M_qM:
+            U, S, Vh = np.linalg.svd(M_qM[qM], full_matrices=False)
+            # chi_full = S.size
+            S_qm_full[qM] = S
+            chi_qM = S.size  # min(self.max_bond_dim, chi_full)
 
-        blocks = []
-        qvals = np.intersect1d(np.unique(q_row), np.unique(q_col))
-        # print(f'*** {q_row, q_col} ***', flush=True)
-        # print(f'*** {qvals} ***', flush=True)
-        for qmid in qvals:
-            rows = np.where(q_row == qmid)[0]
-            cols = np.where(q_col == qmid)[0]
-            # print(rows,cols)
-            # for row in rows:
-            #    for col in cols:
-            #        Uq, Sq, Vhq = np.linalg.svd(theta[:, row, col,:], full_matrices=False)
-            #        blocks.append((qmid, row, col, Uq, Sq, Vhq))
-            Uq, Sq, Vhq = np.linalg.svd(M[np.ix_(rows, cols)], full_matrices=False)
-            blocks.append((qmid, rows, cols, Uq, Sq, Vhq))
+            for k, S_i in enumerate(S):
+                sing_val_info.append((S_i, qM, k))
 
-        all_s = []
-        for bi, (_, _, _, _, Sq, _) in enumerate(blocks):
-            for k, sv in enumerate(Sq):
-                all_s.append((sv, bi, k))
+            for qL, row_sl in rows[qM].items():
+                dL = dim_L[qL]
+                muL = g[qM - qL]
 
-        # sort by singular-value size, descending order
-        all_s.sort(key=lambda t: t[0], reverse=True)
+                # (dL*muL, chi_qM)
+                U_part = U[row_sl, :]
+                if direction == "right":
+                    A_left_new[(qL, qM)] = U_part.reshape(dL, muL, chi_qM)
+                elif direction == "left":
+                    A_left_new[(qL, qM)] = (U_part * S[None, :]).reshape(
+                        dL, muL, chi_qM
+                    )
 
-        normM = np.linalg.norm(M) + 1e-300
-        leak = np.linalg.norm(M[~mask]) / normM
-        if leak > 1e-4:
-            print(f"U(1) leakage: {leak:.3e}")
+            # right blocks from (S*Vh): iterate qR slices
+            if direction == "right":
+                SVh = S[:, np.newaxis] * Vh
+            elif direction == "left":
+                SVh = Vh
 
-        chi = min(self.max_bond_dim, len(all_s))
-        kept_sv = all_s[:chi]
+            for qR, col_sl in cols[qM].items():
+                dR = dim_R[qR]
+                muR = g[qR - qM]
 
-        U_keep = np.zeros((l * d1, chi), dtype=self.dtype)
-        Vh_keep = np.zeros((chi, d2 * r), dtype=self.dtype)
-        S_keep = np.zeros((chi))
-        q_mid_new = np.zeros((chi), dtype=int)
+                # (chi_qM, muR*dR)
+                V_part = SVh[:, col_sl]
+                A_right_new[(qM, qR)] = V_part.reshape(chi_qM, muR, dR)
 
-        for j, (sv, bi, k) in enumerate(kept_sv):
-            qmid, rows, cols, Uq, Sq, Vhq = blocks[bi]
-            U_keep[rows, j] = Uq[:, k]
-            Vh_keep[j, cols] = Vhq[k, :]
-            S_keep[j] = sv
-            q_mid_new[j] = qmid
+        sing_val_info.sort(key=lambda item: item[0], reverse=True)
+        kept = sing_val_info[: self.max_bond_dim]
 
-        S2_all = np.array([sv**2 for (sv, _, _) in all_s], dtype=float)
-        tot = S2_all.sum()
-        disc = S2_all[chi:].sum() if chi < len(S2_all) else 0.0
-        # self.discarded_weight = disc / tot
+        chi_keep = {qM: 0 for qM in M_qM}
+        for sv, qM, _ in kept:
+            chi_keep[qM] += 1
+
+        tot = 0.0
+        disc = 0.0
+        for qM, S in S_qm_full.items():
+            S2 = S * S
+            tot += S2.sum()
+            disc += S2[chi_keep[qM] :].sum()
         self.discarded_weight = disc / tot if tot > 0 else 0.0
 
-        # kept = S2_all[:chi].sum()
-        # kept_norm = np.sqrt(kept)
-        # S_keep /= kept_norm
-        kept = (S_keep * S_keep).sum()
-        if kept > 0:
-            S_keep /= np.sqrt(kept)
+        kept_weight = tot - disc
+        scale = (1.0 / np.sqrt(kept_weight)) if kept_weight > 0 else 1.0
 
-        U = U_keep
-        Vh = Vh_keep
+        A_left_trunc = {}
+        A_right_trunc = {}
+
+        for qM in M_qM:
+            chi = chi_keep[qM]
+            if chi == 0:
+                continue
+
+            for qL in rows[qM].keys():
+                block = A_left_new[(qL, qM)][:, :, :chi]
+                if direction == "left":
+                    block = block * scale
+                A_left_trunc[(qL, qM)] = block
+
+            for qR in cols[qM].keys():
+                block = A_right_new[(qM, qR)][:chi, :, :]
+                if direction == "right":
+                    block = block * scale
+                A_right_trunc[(qM, qR)] = block
+
+        mps[center] = A_left_trunc
+        mps[center + 1] = A_right_trunc
+
+        self.q_bonds[center + 1] = {qM: chi_keep[qM] for qM in M_qM if chi_keep[qM] > 0}
+
+        new_canonical_center = center
         if direction == "right":
-            mps[center] = U.reshape(l, d1, chi)
-            # mps[center + 1] = (np.diag(S_keep) @ Vh).reshape(chi, d2, r)
-            mps[center + 1] = (S_keep[:, None] * Vh).reshape(chi, d2, r)
             new_canonical_center += 1
 
-        elif direction == "left":
-            # mps[center] = (U @ np.diag(S_keep)).reshape(l, d1, chi)
-            mps[center] = (U * S_keep[None, :]).reshape(l, d1, chi)
-            mps[center + 1] = Vh.reshape(chi, d2, r)
-            # new_canonical_center = max(center - 1, 0)
-            new_canonical_center = max(center, 0)
-
-        self.q_bonds[center + 1] = q_mid_new
-
         return new_canonical_center, mps
+
+    def _get_supermat_by_qM(self, theta, dim_L, dim_R):
+        """ """
+
+        # sort by by middle-charge qM
+        g = self.g_degen
+        by_qM = {}
+        for (qL, qM, qR), M in theta.items():
+            by_qM.setdefault(qM, {})[(qL, qR)] = M
+
+        M_qM = {}
+        row_slices = {}
+        col_slices = {}
+
+        for qM, blocks in by_qM.items():
+            qLs = sorted({qL for (qL, qR) in blocks.keys()})
+            qRs = sorted({qR for (qL, qR) in blocks.keys()})
+
+            # extract the row- and col sizes
+            row_sizes = {qL: dim_L[qL] * g[qM - qL] for qL in qLs}
+            col_sizes = {qR: g[qR - qM] * dim_R[qR] for qR in qRs}
+
+            # keep track of the slices
+            rs = {}
+            off = 0
+            for qL in qLs:
+                rs[qL] = slice(off, off + row_sizes[qL])
+                off += row_sizes[qL]
+            cs = {}
+            off = 0
+            for qR in qRs:
+                cs[qR] = slice(off, off + col_sizes[qR])
+                off += col_sizes[qR]
+
+            row_slices[qM] = rs
+            col_slices[qM] = cs
+
+            # construct M_qM
+            row_strips = []
+            for qL in qLs:
+                sub_blocks = []
+                for qR in qRs:
+                    if (qL, qR) in blocks:
+                        B = blocks[(qL, qR)]
+                        dL, muL, muR, dR = B.shape
+                        sub_blocks.append(B.reshape(dL * muL, muR * dR))
+                    else:
+                        sub_blocks.append(
+                            np.zeros((row_sizes[qL], col_sizes[qR]), dtype=self.dtype)
+                        )
+                row_strips.append(np.concatenate(sub_blocks, axis=1))
+
+            M_qM[qM] = np.concatenate(row_strips, axis=0)
+
+        return M_qM, row_slices, col_slices
