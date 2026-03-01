@@ -364,6 +364,124 @@ class MpsDriver:
 
         return mps
 
+    @staticmethod
+    def _canonicalize_QR_u1(mps, center, q_bond):
+        """
+        Implements canonicalization of an MPS with QR-factorization.
+
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+        :param center:
+            The SITE-based canonical center.
+
+        :return:
+            The MPS in canonical form. (list of arrays)
+        """
+        # TODO: can be made more efficient
+        L = len(mps)  # self.nr_sites
+        # d = mps[0].shape[1]
+
+        L = len(mps)
+        for l in range(center):
+            qR_vals = sorted({qR for (_, qR) in mps[l].keys()})
+            # for qR in list(q_bond[l+1].keys()):
+            for qR in qR_vals:
+                L_blocks = []
+                L_shapes = []
+                ql_list = []
+
+                for qL, _qR in mps[l]:
+                    if qR == _qR:
+                        curr_block = mps[l][(qL, qR)]
+
+                        m_l, g, m_r = curr_block.shape
+
+                        # don't really need to keep track of qL as they should stay in the same order?
+                        # L_blocks = [(curr_block, qL)]
+                        L_blocks.append(curr_block.reshape(m_l * g, m_r))
+                        L_shapes.append((m_l, g, m_r))
+
+                        ql_list.append(qL)
+
+                # A_R.shape = (sum of rows, D_R(qR))
+                A_R = np.vstack(L_blocks)
+
+                # Q.shape = (sum_rows, m), m = min(sum_rows, D_R(qR))
+                # R.shape = (m, D_R(qR))
+                Q, R = np.linalg.qr(A_R)
+
+                m_r = Q.shape[1]
+
+                for qL2, qR2 in list(mps[l + 1]):
+                    if qL2 == qR:
+                        A_R2 = mps[l + 1][(qL2, qR2)].copy()
+                        mps[l + 1][(qL2, qR2)] = np.einsum("lm, mdr -> ldr", R, A_R2)
+
+                slice_len = 0
+                for k, qL in enumerate(ql_list):
+                    # _ql = ql_list[k]
+                    (m_l, g, _) = L_shapes[k]
+                    _slice = int(m_l * g)
+
+                    Q_slice = Q[slice_len : slice_len + _slice]
+
+                    mps[l][(qL, qR)] = Q_slice.reshape(m_l, g, m_r)
+                    slice_len += _slice
+
+                q_bond[l + 1][qR] = m_r
+
+        for l in range(L - 1, center, -1):
+            qL_vals = sorted({qL for (qL, _) in mps[l].keys()})
+            for qL in qL_vals:
+                R_blocks = []
+                R_shapes = []
+                qr_list = []
+
+                for _qL, qR in mps[l]:
+                    if qL == _qL:
+                        curr_block = mps[l][(qL, qR)]
+
+                        m_l, g, m_r = curr_block.shape
+
+                        # don't really need to keep track of qL as they should stay in the same order?
+                        # L_blocks = [(curr_block, qL)]
+                        R_blocks.append(curr_block.reshape(m_l, g * m_r))
+                        R_shapes.append((m_l, g, m_r))
+
+                        qr_list.append(qR)
+
+                # A_R.shape = (sum of rows, D_R(qR))
+                # A_L.shape = (D_L(qL), sum of cols)
+                A_L = np.hstack(R_blocks)
+
+                # Q.shape = (sum_cols,m), m = min(sum_cols, D_L(qL))
+                # R.shape = (m, D_R(qR))
+                Q, R = np.linalg.qr(A_L.T.conjugate())
+
+                m_l = Q.shape[1]
+
+                for qL2, qR2 in list(mps[l - 1]):
+                    if qR2 == qL:
+                        A_L2 = mps[l - 1][(qL2, qR2)].copy()
+                        mps[l - 1][(qL2, qR2)] = np.einsum(
+                            "mdl, lr -> mdr", A_L2, R.T.conjugate()
+                        )
+
+                slice_len = 0
+                for k, qR in enumerate(qr_list):
+                    # _ql = ql_list[k]
+                    (_, g, m_r) = R_shapes[k]
+                    _slice = int(m_r * g)
+
+                    Q_slice = Q.T.conjugate()[:, slice_len : slice_len + _slice]
+
+                    mps[l][(qL, qR)] = Q_slice.reshape(m_l, g, m_r)
+                    slice_len += _slice
+
+                q_bond[l][qL] = m_l
+
+        return mps, q_bond
+
     def full_norm(self):
         """
         Gets the norm of the MPS by fully contracting through the MPS.
@@ -398,6 +516,27 @@ class MpsDriver:
         # ).real
         A = mps[self.canonical_center]
         return np.sqrt(np.vdot(A, A).real)
+
+    def canonical_norm_u1(self, mps=None):
+        """
+        Gets the norm of the MPS assuming it is in canonical form.
+
+        :param mps:
+            The matrix-product state object (list of numpy arrays).
+
+        :return:
+            The norm of the MPS (wavefunction). (float)
+        """
+        if mps is None:
+            mps = self.mps
+        if self.canonical_center is None:
+            raise ValueError("Requires the MPS in canonical form!")
+
+        norm2 = 0
+        for qL, qR in mps[self.canonical_center]:
+            block = mps[self.canonical_center][(qL, qR)]
+            norm2 += np.vdot(block, block).real
+        return np.sqrt(norm2)
 
     # @staticmethod
     def overlap(self, mps1, mps2):
