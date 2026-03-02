@@ -6,7 +6,10 @@ from scipy.sparse.linalg import LinearOperator, eigsh
 from .mpo import MpoDriver
 from .mps import MpsDriver
 
-
+# Feedback: This could be turned into a DmrgDriver class that handles the settings
+# and initialization of the MPO and MPS based on user-settings.
+# Feedback: you could add references to the equations which you used, whenever neccessary;
+# Can be useful for later, if you want to come back to this code.
 class SweepDriver:
     """
     Implements the SweepDriver that handles the core DMRG algorithm for variational minimization through sweeping.
@@ -48,6 +51,9 @@ class SweepDriver:
         self.allow_bond_growth = settings.allow_bond_growth
         self.bond_growth_step = settings.bond_growth_step
 
+    # Feedback: you can probably split the einsum into multiple einsums.
+    # This could make it somewhat faster; eChem example:
+    # https://kthpanor.github.io/echem/docs/elec_struct/integrals.html
     def apply_eff_ham(self, L, Wl, Wr, R, X):
         """
         Applies the effective Hamiltonian from contracted left- and right eenvironments.

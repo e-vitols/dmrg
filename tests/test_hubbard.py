@@ -60,7 +60,7 @@ class TestHubbardHamiltonian:
     @pytest.mark.slow
     def test_hubbard_naive_long(self, m_bonddim=8, nr_sites=4):
         """
-        Tests Hubbard with the naiveöly built MPO.
+        Tests Hubbard with the naively built MPO.
         """
         canonical_center = 0
 

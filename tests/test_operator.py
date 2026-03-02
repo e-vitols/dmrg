@@ -7,6 +7,7 @@ import dmrg
 class TestOperator:
     def test_chem_pot(self, m_bonddim=8, nr_sites=4, canonical_center=0):
         # TODO: separate into a different test per assertion
+        # Feedback: it looks like you fixed the TODO, so the comment can be deleted ;)
         settings = dmrg.Settings(nr_sites=nr_sites, max_bond_dim=m_bonddim)
         mpo_drv = dmrg.MpoDriver(settings)
         mps_drv = dmrg.MpsDriver(settings)
