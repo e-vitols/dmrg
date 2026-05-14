@@ -1,6 +1,6 @@
 # vlx-dmrg
 
-**vlx-dmrg** is a DMRG solver in the MPO formalism that uses VeloxChem (VLX) as the backend for SCF/MOs and integral construction to assemble the Hamiltonian. The initial release aims to serve as a minimal, didactic example.
+**vlx-dmrg** is a DMRG solver in the MPO formalism that uses VeloxChem (VLX) as the backend for SCF/MOs and integral construction to assemble the Hamiltonian.
 
 <br>
 <br>
