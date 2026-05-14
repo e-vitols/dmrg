@@ -41,7 +41,7 @@ It is highly recommend that you install vlx-dmrg in a conda environment.
 If you don't already have conda, install [Miniconda](https://www.anaconda.com/download/success) 
 following the [instructions](https://www.anaconda.com/docs/getting-started/miniconda/install) for your operating system. 
 Once you have miniconda, create a new conda environment using the vlxdmrg_env.yml file.
-In a terminal (or Anaconda Powershell prompt for Windows), run:
+In a terminal (Anaconda Powershell prompt for Windows), run:
 
 ```
 conda env create -f vlxdmrg_env.yml
