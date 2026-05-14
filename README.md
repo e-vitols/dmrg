@@ -25,7 +25,7 @@ The dependencies of **vlx-dmrg** are the same as that for [VeloxChem][VeloxChem]
 
 **Installation**
 
-Clone the repository with:
+Clone the repository with either:
 
 ```
 git clone https://github.com/e-vitols/dmrg.git
