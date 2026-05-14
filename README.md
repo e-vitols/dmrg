@@ -1,6 +1,6 @@
 # vlx-dmrg
 
-**vlx-dmrg** is a DMRG solver in the MPO formalism that uses VeloxChem (VLX) as the backend for SCF/MOs and integral construction to assemble the Hamiltonian. The initial release aims to serve as a minimal, didactic example.
+**vlx-dmrg** is a DMRG solver in the MPO formalism that uses VeloxChem (VLX) as the backend for SCF/MOs and integral construction to assemble the Hamiltonian.
 
 <br>
 <br>
@@ -25,7 +25,7 @@ The dependencies of **vlx-dmrg** are the same as that for [VeloxChem][VeloxChem]
 
 **Installation**
 
-Clone the repository with:
+Clone the repository with either:
 
 ```
 git clone https://github.com/e-vitols/dmrg.git
@@ -41,7 +41,7 @@ It is highly recommend that you install vlx-dmrg in a conda environment.
 If you don't already have conda, install [Miniconda](https://www.anaconda.com/download/success) 
 following the [instructions](https://www.anaconda.com/docs/getting-started/miniconda/install) for your operating system. 
 Once you have miniconda, create a new conda environment using the vlxdmrg_env.yml file.
-In a terminal (or Anaconda Powershell prompt for Windows), run:
+In a terminal (Anaconda Powershell prompt for Windows), run:
 
 ```
 conda env create -f vlxdmrg_env.yml
